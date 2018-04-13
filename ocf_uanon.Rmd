@@ -1,0 +1,187 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+```
+
+
+```{r loading_data}
+printing <- read.csv("~/remote/ocf_boc/data/printing_unan.csv", stringsAsFactors=FALSE, na.strings = "NULL")
+sessions <- read.csv("~/remote/ocf_boc/data/sessions_uanon.csv", stringsAsFactors=FALSE, na.strings = "NULL")
+staff_sessions <- read.csv("~/remote/ocf_boc/data/staff_session_duration_public.csv", stringsAsFactors=FALSE,na.strings = "NULL")
+```
+
+
+```{r}
+get_time= function(string) {
+  as.POSIXct(paste(substr(string, 0, 10), substr(string,12, 19)))
+}
+
+get_time_m = memoise::memoise(get_time)
+```
+
+
+```{r}
+mar21_sessions = sessions %>% 
+  filter(date(start) == "2018-03-21") %>%
+  mutate(start = get_time_m(start)) %>% 
+  mutate(end = get_time_m(end)) %>% 
+  mutate(interval = lubridate::interval(start, end)) 
+
+mar21_printing = printing %>% filter(date(time) == "2018-03-21") %>% 
+  mutate(time = get_time_m(time)) 
+```
+
+```{r}
+bold_agg_session = aggregate(data=mar21_sessions, interval~user, FUN=as.character)
+bold_agg_printing = aggregate(data=mar21_printing, time~user, FUN=as.character)
+
+bold_join =bold_agg_session %>% left_join(bold_agg_printing, by="user")
+bold_join2 = (mar21_sessions %>% select(start, end, user, host))  %>% 
+  left_join(mar21_printing %>% select(time, user), by="user") 
+```
+
+```{r}
+mar21_sessions_merged = bold_join2 %>% 
+  mutate(if_valid = (time>=start)&(time <= end)) 
+#%>%
+#  tidyr::replace_na(list(if_valid=TRUE))
+
+temp = bold_join2 %>% 
+  arrange(desc(time)) %>% 
+  filter(!duplicated(cbind(start, end))) %>% 
+  mutate(if_printing = (time>=start)&(time <= end)) %>% 
+  tidyr::replace_na(list(if_printing=FALSE)) %>% 
+  mutate(duration = as.numeric(round((end - start)/60, 1)))
+  
+```
+
+```{r}
+View(temp %>% select(if_printing, duration) %>% 
+       group_by(if_printing) %>% 
+       summarise(mean=mean(duration),
+                 q10=quantile(duration, 0.1),
+                 q25=quantile(duration, 0.25),
+                 q50=quantile(duration, 0.5),
+                 q75=quantile(duration, 0.75),
+                 q90=quantile(duration, 0.9),
+                 q95=quantile(duration, 0.95)))
+#bold_join = (mar21_sessions %>% select(user, interval))%>% left_join(mar21_printing %>% select(time, user), by="user")
+```
+
+```{r}
+ggplot(temp %>% filter(duration < 100)) +
+  geom_histogram(aes(duration, fill=if_printing), alpha=0.8, position="identity", bins=50) + 
+  scale_y_continuous(labels = scales::percent)
+```
+
+last semester
+(date(start) >= "2017-08-24") & (date(start) <= "2017-12-15") 
+
+
+```{r joining_table_on_global_scale}
+printing <- read.csv("~/remote/ocf_boc/data/printing_unan.csv", stringsAsFactors=FALSE, na.strings = "NULL")
+sessions <- read.csv("~/remote/ocf_boc/data/sessions_uanon.csv", stringsAsFactors=FALSE, na.strings = "NULL")
+staff_sessions <- read.csv("~/remote/ocf_boc/data/staff_session_duration_public.csv", stringsAsFactors=FALSE,na.strings = "NULL")
+
+sp18_sessions = sessions %>% 
+  filter(end != "") %>%
+#  filter(date(start) >= "2018-01-16") %>%
+  filter((date(start) >= "2017-08-24") & (date(start) <= "2017-12-15")) %>% 
+  mutate(start = get_time_m(start)) %>% 
+  mutate(end = get_time_m(end)) 
+
+sp18_public_session = sp18_sessions %>% 
+  filter(host != "blizzard.ocf.berkeley.edu") %>%
+  filter(host != "eruption.ocf.berkeley.edu") %>%
+  anti_join(staff_sessions, by="id")
+
+sp18_printing = printing %>% 
+#  filter(date(time) >= "2018-01-16") %>% 
+  mutate(time = get_time_m(time)) %>% 
+  filter((date(time) >= "2017-08-24") & (date(time) <= "2017-12-15")) 
+  
+
+#bold_agg_session = aggregate(data=sp18_sessions, interval~user, FUN=as.character)
+#bold_agg_printing = aggregate(data=sp18_printing, time~user, FUN=as.character)
+
+#bold_join =bold_agg_session %>% left_join(bold_agg_printing, by="user")
+bold_join2 = (sp18_public_session %>% select(start, end, user, host))  %>% 
+  left_join(sp18_printing %>% select(time, user), by="user") 
+
+temp = bold_join2 %>% 
+  arrange(desc(time)) %>% 
+  filter(!duplicated(cbind(start, end))) %>% 
+  mutate(if_printing = (time>=start)&(time <= end)) %>% 
+  tidyr::replace_na(list(if_printing=FALSE)) %>% 
+  mutate(duration = as.numeric(round((end - start)/60, 1))) %>% 
+  filter(duration > 0)
+
+ggplot(temp %>% filter((hour(start) >= 10) & (hour(end) < 18))) +
+  geom_histogram(aes(duration, fill=if_printing), alpha=0.8, position="identity", bins=50) +
+  facet_grid(. ~ weekdays(start))  + xlim(0, 100)
+
+ggplot(temp %>% filter((hour(start) >= 9) & (hour(end) < 18))) +
+geom_density(aes(duration, fill=if_printing), alpha=0.3, position="identity") +
+facet_grid(. ~ weekdays(start)) + xlim(0, 100)
+
+ggplot(temp %>% filter((hour(start) >= 9) & (hour(end) < 18))) +
+stat_ecdf(aes(duration, color=if_printing), position="identity") +
+facet_grid(. ~ weekdays(start)) + xlim(0, 100) + ylim(0.5, 1)
+```
+
+```{r}
+temp_table = temp %>% filter((hour(start) >= 10) & (hour(end) <= 18)) %>% select(if_printing, duration, start) %>% 
+       group_by(if_printing, weekdays(start)) %>% 
+       summarise(mean=mean(duration),
+                 q10=quantile(duration, 0.1),
+                 q25=quantile(duration, 0.25),
+                 q50=quantile(duration, 0.5),
+                 q55=quantile(duration, 0.55),
+                 q60=quantile(duration, 0.6),
+                 q65=quantile(duration, 0.65),
+                 q70=quantile(duration, 0.70),
+                 q75=quantile(duration, 0.75),
+                 q90=quantile(duration, 0.9),
+                 q95=quantile(duration, 0.95), n())
+```
+
+
+```{r}
+get_quantiles = function(x){
+  percentiles = seq(0.1, 1-0.05, 0.05)
+  paste(round(quantile(x, percentiles),1), collapse = "||")
+}
+
+get_quantiles(1:100)
+```
+
+```{r}
+temp %>% filter((hour(start) >= 9) & (hour(end) < 18)) %>%
+  select(if_printing, duration, start) %>% 
+  group_by(if_printing, weekdays(start)) %>% 
+  summarise(x = get_quantiles(duration))
+```
+
+```{r}
+print_by_dates =temp %>% filter((hour(start) >= 9) & (hour(end) < 18))  %>% 
+  group_by(date(start), weekdays(start)) %>% 
+  count(if_printing) %>% 
+  tidyr::spread(if_printing, n) %>% 
+  mutate(not_print = `FALSE`/(`FALSE` + `TRUE`)) %>% 
+  mutate(print = `TRUE`/(`FALSE` + `TRUE`))
+
+
+print_by_weeks =temp %>% filter((hour(start) >= 9) & (hour(end) < 18))  %>% 
+  group_by(week(start)) %>% 
+  count(if_printing) %>% 
+  tidyr::spread(if_printing, n) %>% 
+  mutate(not_print = `FALSE`/(`FALSE` + `TRUE`)) %>% 
+  mutate(print = `TRUE`/(`FALSE` + `TRUE`))
+```
+

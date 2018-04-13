@@ -1,0 +1,82 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+```{r}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(forecast)
+```
+
+```{r}
+force_table <- read.csv("~/Downloads/normalized_summed.csv")
+force = force_table$force 
+```
+
+algorithm
+1. moving average to smooth the line  
+2. low pass filter to find points that are in the "peak period"  
+3. use moving average again to find the begin and end index  
+
+#### Finding Threshold 
+
+The first hundred points are basically "noise", so I check the max of that.  
+```{r}
+summary(force[1:100])
+```
+
+```{r}
+threshold = 0.0009
+```
+
+
+```{r include=F}
+# wrong moving average function, 
+mv_degree = 4
+mv3 = TTR::SMA(c(rep(0, mv_degree), force, rep(0, mv_degree)), n=mv_degree)
+
+processed = as.numeric(mv3[5:(4+length(force))] > threshold)
+```
+
+```{r}
+# using moving average to smooth the data
+mv_degree = 4
+# processed supposed to find the points that are in the "peak period"
+force_mv = na.omit(ma(c(rep(0, mv_degree), force, rep(0, mv_degree)), order= mv_degree*2+1))
+processed =  as.numeric(force_mv > threshold)
+```
+
+Showing how well the moving average(blue color) and low pass filter(red color) does 
+
+```{r}
+ggplot() +
+  geom_point(aes(x=1:length(force), y=as.numeric(processed)-1),colour="red") + 
+  geom_line(aes(x=1:length(force), y= force_mv),colour="blue") + 
+  geom_line(aes(x=1:length(force), y=force)) +
+  ylim(0, 0.4)
+```
+
+
+
+```{r}
+# if you want them to seperate by k(only odd number since I am running moving avg)
+# then it will unable to detect spikes that are under k-length long
+k = 17
+processed_mv_degree = (k-1)/2
+processed_mv = na.omit(ma(c(rep(0, processed_mv_degree), processed, rep(0, processed_mv_degree)), order= k))
+processed_mv2 = as.numeric(round(processed_mv, 5) == round((processed_mv_degree+1)/(processed_mv_degree*2 + 1), 5))
+```
+
+Checking 
+
+```{r}
+ggplot() +
+  geom_point(aes(x=1:length(force), y=processed -1, color="red")) + 
+  geom_point(aes(x=1:length(force), y=processed_mv2-1, colour="blue")) +
+  geom_line(aes(x=1:length(force), y=force)) +
+  ylim(0, 0.4)
+```
+

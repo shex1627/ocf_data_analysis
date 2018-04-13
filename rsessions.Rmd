@@ -1,0 +1,137 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(stringi)
+library(ggplot2)
+```
+
+```{r}
+sessions = read.csv("~/remote/ocf_boc/session_duration_public.csv", stringsAsFactors = F) %>%
+  filter(end != "NULL") %>%
+  filter(host != "blizzard.ocf.berkeley.edu" & host != "eruption") %>%
+  mutate(start = as.POSIXct(start)) %>%
+  mutate(end = as.POSIXct(end))
+```
+
+```{r utils}
+get_time = function(time_stamp) {
+  # given time stamp, extract the time down to minutes 
+  return(substr(time_stamp, 12, 16))
+}
+
+interval = "5 minutes"
+interval2 = "5 min"
+```
+
+
+```{r}
+sp18 = sessions %>% 
+  # specifying the date
+  filter(date(sessions$start) > "2018-01-15") %>%
+  # filtering the "open hours" we care about
+  filter(hour(start) >= 9 & hour(end) <= 6) %>%
+  # creating features used 
+  mutate(date = date(start)) %>%
+  mutate(start_min = get_time(round_date(start, unit=interval))) %>% 
+  mutate(end_min = get_time(round_date(end, unit=interval))) %>%
+  mutate(day_of_week = weekdays(start)) 
+
+sp18_short = sp18 %>%
+  select(c(date, day_of_week, start_min, end_min))
+```
+
+```{r}
+sp18_start = sp18_short %>% 
+  group_by(date, day_of_week, start_min) %>% 
+  count() %>% 
+  rename(time = start_min, start=n) %>% 
+  arrange(day_of_week)
+
+sp18_end = sp18_short %>% 
+  group_by(date, day_of_week, end_min) %>% 
+  count() %>% 
+  rename(time = end_min, end = n) %>% 
+  arrange(day_of_week)
+```
+
+
+```{r}
+begin_date = as.POSIXct(as.Date(min(sp18$start)), tz='America/Los_Angeles') + 8*60*60
+end_date  = as.POSIXct(as.Date(max(sp18$end)), tz='America/Los_Angeles')+ 8*60*60 
+sp18_time_seq = seq.POSIXt(begin_date, end_date, by = interval2,tz='America/Los_Angeles')
+
+sp18_util = data.frame(date = date(sp18_time_seq), 
+                       time = get_time(sp18_time_seq)) %>% mutate(day_of_week = weekdays(date))
+```
+
+
+```{r}
+sp18_util_net = sp18_util %>% 
+  left_join(sp18_start, by=c("time", "day_of_week", "date")) %>% 
+  left_join(sp18_end, by=c("time", "day_of_week", "date")) %>%
+  mutate(start = ifelse(is.na(start), 0, start)) %>% 
+  mutate(end = ifelse(is.na(end), 0, end)) %>%
+  mutate(net = cumsum(start) - cumsum(end))
+```
+
+
+```{r Monday}
+week_day = "Monday"
+start_time = "09:00" 
+end_time = "18:00"
+
+sp18_day_summarized = sp18_util_net %>% 
+  group_by(time, day_of_week) %>% 
+  summarise(start_max = max(start), start_min = min(start), start_mean=mean(start)) %>% 
+  filter(day_of_week == week_day) %>%
+  # filter by time
+  filter(time >= start_time & time <= end_time)
+
+sp18_day =
+  sp18_util_net %>% 
+  filter(day_of_week == week_day) %>%
+  select(date, time, start) %>%
+  # filter by time
+  filter(time >= start_time & time <= end_time)
+
+ggplot(sp18_day_summarized, aes(x=time)) +
+  geom_line(aes(y=start_mean, group=1), colour="red") +
+  geom_point(aes(x=time,y=start_mean), size=3) +
+  geom_point(data=sp18_day, aes(x=time, y=start, color=factor(date))) +
+  geom_errorbar(aes(ymin=start_min, ymax=start_max)) +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r Tuesday}
+week_day = "Tuesday"
+start_time = "09:00" 
+end_time = "20:00"
+
+sp18_day_summarized = sp18_util_net %>% 
+  group_by(time, day_of_week) %>% 
+  summarise(start_max = max(start), start_min = min(start), start_mean=mean(start)) %>% 
+  filter(day_of_week == week_day) %>%
+  # filter by time
+  filter(time >= start_time & time <= end_time)
+
+sp18_day =
+  sp18_util_net %>% 
+  filter(day_of_week == week_day) %>%
+  select(date, time, start) %>%
+  # filter by time
+  filter(time >= start_time & time <= end_time)
+
+ggplot(sp18_day_summarized, aes(x=time)) +
+  geom_line(aes(y=start_mean, group=1), colour="red") +
+  geom_point(aes(x=time,y=start_mean), size=3) +
+  geom_point(data=sp18_day, aes(x=time, y=start, color=factor(date))) +
+  geom_errorbar(aes(ymin=start_min, ymax=start_max)) +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
