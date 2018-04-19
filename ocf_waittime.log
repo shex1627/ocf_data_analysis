@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.17 (TeX Live 2016/Debian) (preloaded format=pdflatex 2017.5.1)  17 APR 2018 10:03
+This is pdfTeX, Version 3.14159265-2.6-1.40.17 (TeX Live 2016/Debian) (preloaded format=pdflatex 2017.4.8)  18 APR 2018 18:44
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -998,62 +998,58 @@ Package pdftex.def Info: ocf_waittime_files/figure-latex/quantile_graph-1.pdf u
 sed on input line 228.
 (pdftex.def)             Requested size: 459.74442pt x 315.19595pt.
 [5 <./ocf_waittime_files/figure-latex/session_histogram-1.pdf>]
-<ocf_waittime_files/figure-latex/unnamed-chunk-12-1.pdf, id=101, 436.63126pt x 
-286.06876pt>
+<ocf_waittime_files/figure-latex/expected_wait_time-1.pdf, id=101, 453.695pt x 
+315.1775pt>
+File: ocf_waittime_files/figure-latex/expected_wait_time-1.pdf Graphic file (ty
+pe pdf)
+<use ocf_waittime_files/figure-latex/expected_wait_time-1.pdf>
+Package pdftex.def Info: ocf_waittime_files/figure-latex/expected_wait_time-1.p
+df used on input line 259.
+(pdftex.def)             Requested size: 453.6939pt x 315.17673pt.
+
+<ocf_waittime_files/figure-latex/unnamed-chunk-12-1.pdf, id=102, 463.7325pt x 3
+18.18875pt> [6 <./ocf_waittime_files/figure-latex/quantile_graph-1.pdf>]
 File: ocf_waittime_files/figure-latex/unnamed-chunk-12-1.pdf Graphic file (type
  pdf)
 <use ocf_waittime_files/figure-latex/unnamed-chunk-12-1.pdf>
 Package pdftex.def Info: ocf_waittime_files/figure-latex/unnamed-chunk-12-1.pdf
- used on input line 259.
-(pdftex.def)             Requested size: 436.63019pt x 286.06805pt.
-[6 <./ocf_waittime_files/figure-latex/quantile_graph-1.pdf>]
-<ocf_waittime_files/figure-latex/percentile_quantile_interval_plot-1.pdf, id=11
-3, 440.64626pt x 252.945pt>
-File: ocf_waittime_files/figure-latex/percentile_quantile_interval_plot-1.pdf G
-raphic file (type pdf)
-<use ocf_waittime_files/figure-latex/percentile_quantile_interval_plot-1.pdf>
-Package pdftex.def Info: ocf_waittime_files/figure-latex/percentile_quantile_in
-terval_plot-1.pdf used on input line 265.
-(pdftex.def)             Requested size: 440.65189pt x 252.94823pt.
+ used on input line 261.
+(pdftex.def)             Requested size: 463.73135pt x 318.18796pt.
 
-<ocf_waittime_files/figure-latex/unnamed-chunk-13-1.pdf, id=114, 440.64626pt x 
-286.06876pt>
-File: ocf_waittime_files/figure-latex/unnamed-chunk-13-1.pdf Graphic file (type
+<ocf_waittime_files/figure-latex/unnamed-chunk-12-2.pdf, id=114, 463.7325pt x 3
+18.18875pt>
+File: ocf_waittime_files/figure-latex/unnamed-chunk-12-2.pdf Graphic file (type
  pdf)
-<use ocf_waittime_files/figure-latex/unnamed-chunk-13-1.pdf>
-Package pdftex.def Info: ocf_waittime_files/figure-latex/unnamed-chunk-13-1.pdf
- used on input line 274.
-(pdftex.def)             Requested size: 440.65189pt x 286.07242pt.
-[7 <./ocf_waittime_files/figure-latex/unnamed-chunk-12-1.pdf> <./ocf_waittime_f
-iles/figure-latex/percentile_quantile_interval_plot-1.pdf>]
-<ocf_waittime_files/figure-latex/unnamed-chunk-14-1.pdf, id=135, 440.64626pt x 
-286.06876pt>
-File: ocf_waittime_files/figure-latex/unnamed-chunk-14-1.pdf Graphic file (type
- pdf)
-<use ocf_waittime_files/figure-latex/unnamed-chunk-14-1.pdf>
-Package pdftex.def Info: ocf_waittime_files/figure-latex/unnamed-chunk-14-1.pdf
- used on input line 281.
-(pdftex.def)             Requested size: 440.65189pt x 286.07242pt.
-[8 <./ocf_waittime_files/figure-latex/unnamed-chunk-13-1.pdf> <./ocf_waittime_f
-iles/figure-latex/unnamed-chunk-14-1.pdf>]
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 312.
+<use ocf_waittime_files/figure-latex/unnamed-chunk-12-2.pdf>
+Package pdftex.def Info: ocf_waittime_files/figure-latex/unnamed-chunk-12-2.pdf
+ used on input line 262.
+(pdftex.def)             Requested size: 463.73135pt x 318.18796pt.
+
+Underfull \hbox (badness 10000) in paragraph at lines 261--263
+[][]
+ []
+
+[7 <./ocf_waittime_files/figure-latex/expected_wait_time-1.pdf>] [8 <./ocf_wait
+time_files/figure-latex/unnamed-chunk-12-1.pdf> <./ocf_waittime_files/figure-la
+tex/unnamed-chunk-12-2.pdf>]
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 287.
 [9]
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 312.
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 287.
 (./ocf_waittime.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 312.
-Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 312.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 287.
+Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 287.
 Package rerunfilecheck Info: File `ocf_waittime.out' has not changed.
 (rerunfilecheck)             Checksum: DDB1114C15B063534F2FF78A83179C44;1237.
-Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 312.
+Package atveryend Info: Empty hook `AtVeryVeryEnd' on input line 287.
  ) 
 Here is how much of TeX's memory you used:
- 12382 strings out of 494902
- 180209 string characters out of 6179892
+ 12370 strings out of 494902
+ 179822 string characters out of 6179892
  276864 words of memory out of 5000000
- 15449 multiletter control sequences out of 15000+600000
- 44582 words of font info for 67 fonts, out of 8000000 for 9000
+ 15445 multiletter control sequences out of 15000+600000
+ 44250 words of font info for 63 fonts, out of 8000000 for 9000
  36 hyphenation exceptions out of 8191
- 32i,5n,38p,508b,409s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 32i,5n,38p,508b,423s stack positions out of 5000i,500n,10000p,200000b,80000s
 {/usr/share/texmf/fonts/enc/dvips/lm/lm-rm.enc}{/usr/share/texmf/fonts/enc/dv
 ips/lm/lm-mathit.enc}{/usr/share/texmf/fonts/enc/dvips/lm/lm-ec.enc}</usr/share
 /texmf/fonts/type1/public/lm/lmbx10.pfb></usr/share/texmf/fonts/type1/public/lm
@@ -1061,10 +1057,10 @@ ips/lm/lm-mathit.enc}{/usr/share/texmf/fonts/enc/dvips/lm/lm-ec.enc}</usr/share
 f/fonts/type1/public/lm/lmmi7.pfb></usr/share/texmf/fonts/type1/public/lm/lmr10
 .pfb></usr/share/texmf/fonts/type1/public/lm/lmr17.pfb></usr/share/texmf/fonts/
 type1/public/lm/lmri12.pfb></usr/share/texmf/fonts/type1/public/lm/lmtt10.pfb>
-Output written on ocf_waittime.pdf (9 pages, 389738 bytes).
+Output written on ocf_waittime.pdf (9 pages, 228030 bytes).
 PDF statistics:
- 199 PDF objects out of 1000 (max. 8388607)
- 150 compressed objects within 2 object streams
+ 188 PDF objects out of 1000 (max. 8388607)
+ 142 compressed objects within 2 object streams
  20 named destinations out of 1000 (max. 500000)
- 8294 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 8289 words of extra memory for PDF output out of 10000 (max. 10000000)
 
