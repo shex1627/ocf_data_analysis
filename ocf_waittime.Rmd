@@ -12,7 +12,7 @@ output:
 knitr::opts_chunk$set(echo = F, cache = T, warning = F, message = F)
 ```
 
-```{r include=F}
+```{r}
 library(dplyr)
 library(lubridate)
 library(ggplot2)
@@ -94,7 +94,7 @@ Recall that there used to be a bug in our session tracking infrastructure that w
 #abline(h=1/60, col="red")
 ```
 
-```{r include=F}
+```{r include=F, eval=F}
 ggplot() +
   geom_bar(aes(x=second(sp18$end))) +
   geom_hline(yintercept =  1/60 * length(second(sp18$start)), color="red") + 
@@ -256,11 +256,15 @@ c(length(sp18$adjusted_duration[sp18$adjusted_duration < 500])/length(sp18$adjus
 
 While taking a closer look, it seems like lots of sessions are under 100 minutes. To visualize a skewed distribution, we can also see its different quantiles.  
 
-```{r session_histogram}
+```{r session_histogram, eval=F}
 duration_hist = ggplot()+
   geom_histogram(aes(sp18$adjusted_duration), bins = 500) +
-  xlim(0, 500) +
-  xlab("duration in minutes")
+  xlim(0, 200) +
+  xlab("duration in minutes")+
+  geom_vline(xintercept=quantile(sp18$adjusted_duration,c(0.8, 0.9,0.99)), col="red")+
+  geom_text(aes(x=quantile(sp18$adjusted_duration,c(0.8, 0.9,0.99))+5,
+                y=c(1250, 1250, 1250), 
+                label=c("80%","90%","99%")),color="blue")
 
 duration_hist_short = ggplot()+
   geom_histogram(aes(sp18$adjusted_duration), bins = 30, color="gray") +
@@ -271,7 +275,7 @@ duration_hist_short = ggplot()+
                 y=c(3999, 3500, 3000), 
                 label=c("25%","50%","75%")),color="blue")
 
-grid.arrange(duration_hist, duration_hist_short, ncol=2)
+grid.arrange(duration_hist_short, duration_hist, ncol=2)
 ```
 
 
@@ -289,6 +293,24 @@ ggplot() +
 ```
 
 We can see 75% of the sessions are under 14 minutes. And 95% of the sessions are under 65 min. In fact, 99% of the sessions are shorter than 145min. Maybe most of the users come to the lab just to print (I will investigate further in part 2).  
+
+```{r}
+non_remaining = ggplot() +
+  geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 0], from=0)$x,
+                density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 0], from=0)$y), colour="#009ee3") +
+  geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 5], from=5)$x,
+                density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 5], from=5)$y), colour="#00a3c9") +
+  geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 10], from=10)$x,
+                density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 10], from=10)$y), colour="#00a6aa") +
+  geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 15], from=15)$x,
+                density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 15], from=15)$y), colour="#00a989") +
+  geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 20], from=20)$x,
+                density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 20], from=20)$y), colour="#2eac66") +
+  xlim(0, 100) 
+
+non_remaining
+```
+
 
 # Expected Wait Time Given Current Session Duration
 
@@ -311,23 +333,51 @@ temp_df = data.frame()
 start = 0
 end = 75
 for (i in start:end) {
+  temp_vec = sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > i]-i
   temp_df =rbind(temp_df, c(i, 
-                            mean(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > i]-i),
-                            median(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > i]-i)
+                            mean(temp_vec),
+                            median(temp_vec),
+                            q1=quantile(temp_vec,0.25),
+                            q3=quantile(temp_vec,0.75),
+                            count=length(temp_vec)
                             ))
 }
-colnames(temp_df) = c("t", "mean_wait", "median_wait")
+colnames(temp_df) = c("t", "mean_wait", "median_wait", "q1", "q3", "count")
 #temp_df
 ```
 
 ```{r expected_wait_time}
-temp_df_melted = temp_df %>% reshape::melt(id=c("t")) %>% rename(metric=variable, wait_time=value)
+temp_df_melted = temp_df %>% 
+  select(t, median_wait, mean_wait) %>% 
+  reshape::melt(id=c("t")) %>% rename(metric=variable, wait_time=value)
 wait_time_plot = ggplot(temp_df_melted) + 
   geom_point(aes(x=t, y=wait_time, group=metric, color=metric)) +
   geom_line(aes(x=t, y=wait_time, group=metric, color=metric)) + 
   ylab("remaining session duration in minutes") 
 
+#wait_time_plot
 ```
+
+```{r expected_wait_time_plot}
+sub25_sessions = ggplot(temp_df %>% 
+         filter(t<=25), aes(x=t, y=median_wait)) + 
+  geom_point(aes(size=count),colour="blue") +
+  geom_line(colour="blue") +
+  geom_point(aes(x=t, y=mean_wait), colour="red") + 
+  geom_errorbar(aes(ymin=q1, ymax=q3))
+
+up25_session = ggplot(temp_df %>% 
+         filter(t>25), aes(x=t, y=median_wait)) + 
+  geom_point(aes(size=count),colour="blue") +
+  geom_line(colour="blue") +
+  geom_point(aes(x=t, y=mean_wait), colour="red") + 
+  geom_errorbar(aes(ymin=q1, ymax=q3))
+
+grid.arrange(sub25_sessions, up25_session, 
+             top = grid::textGrob("Wait Time vs Current Session Time",
+                                  gp=grid::gpar(fontsize=12,font=1)))
+```
+
 
 
 ```{r}
@@ -350,9 +400,15 @@ median_plot = ggplot(temp_df %>% head(5)) +
   xlab("current session time") + theme(legend.position="none") + 
   ylim(4, 6.5)
 
-lay=rbind(c(1,1,2),c(1,1,3))
-grid.arrange(wait_time_plot, mean_plot, median_plot, layout_matrix=lay)
+#lay=rbind(c(1,1,2),c(1,1,3))
+#grid.arrange(wait_time_plot, mean_plot, median_plot, layout_matrix=lay)
 ``` 
+
+
+```{r}
+
+grid.arrange(mean_plot, median_plot)
+```
 
 
 since many duration are cluster at the 2 - 3 min mark, we can anticipate a session will last only around 2-3min or so.
