@@ -74,13 +74,13 @@ sp18_wait = sp18 %>%
 
 Here are the procedures I use to clean the data:  
 
-1. Because the lab volunteer staff often uses the desktops much longer than regular users and have very different login patterns, I exclude all sessions from the volunteer staff.   
+1. Exclude all sessions from the volunteer staff because lab volunteer staff members often have longer session durations and login after lab open hours.  
 
-2. I exclude sessions that have 0 or negative durations. This is mostly a data engineering issue because it is physically very difficult and rare that some user logins and logouts within 1-2 seconds to have a 0 session duration.  
+2. Exclude sessions that have 0 or negative durations. Because they are not accurate and extremely rare (6 out of 33k sessions this semester).  
 
-3. I exclude sessions from host "blizzard" and "eruption" because they are desktops exclusive to front desk staff members and volunteer staff memebers. 
+3. Exclude sessions from host "blizzard" and "eruption" because they are desktops exclusive to front desk staff members and volunteer staff memebers. 
 
-4. I exclude sessions during the weekends because weekend sessions are often longer than the weekdays'. The table below shows each weekday's mean and median session duration. The weekends are highlighted. 
+4. Exclude sessions during the weekends because weekend sessions are often longer than the weekdays'. The table below shows each weekday's mean and median session duration. The weekends are highlighted. 
 
 ```{r weekend_effect, fig.width=7, fig.height=3}
 weekend_effects = sp18 %>% 
@@ -143,7 +143,7 @@ ggplot() +
                fill=factor(date(sp18_weekdays$start[date(sp18_weekdays$start) <= "2018-02-05"]))), colour="black")
 ```
 
-```{r include=F, eval=F}
+```{r eval=F}
 ggplot() +
   geom_bar(aes(x=second(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]), 
                group=date(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]),
@@ -154,7 +154,7 @@ ggplot() +
 # for some reason 3 is abnormally high, and 0, 1, 2 are low
 ```
 
-```{r include=F, eval=F}
+```{r eval=F}
 post05 = sp18_weekdays %>% filter(date(start) > "2018-02-05") 
 # starting second 3 has highest count
 ggplot(post05 %>% count(hour=hour(start),second=second(start)) %>% filter((hour < 19) & (hour > 8))) +
@@ -193,7 +193,9 @@ corrupted_sessions = data.frame(sp18_weekdays %>%
                     summarise(num_corrupted=sum(if_corrupted),
                               num_session=n()) %>%
                     mutate(percent_corrupted=num_corrupted/num_session))
+```
 
+```{r corrupted_session_plot, eval=F}
 corrupted_session_plot = ggplot(corrupted_sessions) +
   geom_point(aes(x=date,y=percent_corrupted,size=num_session), alpha=0.5) +
   scale_x_date(date_minor_breaks = "1 day") +
@@ -208,10 +210,11 @@ c_session_plot_small = ggplot(corrupted_sessions %>% filter(month(date) == 2) %>
   theme(legend.position = "top")+
   ylim(0, 1.05) 
 
-#grid.arrange(corrupted_session_plot, c_session_plot_small)
+grid.arrange(corrupted_session_plot, c_session_plot_small)
 ```
 
-```{r corrupted_sessions2}
+
+```{r corrupted_sessions_plot2}
 ggplot(corrupted_sessions) +
   #geom_point(aes(x=date,y=percent_corrupted), alpha=0.5) +
   geom_line(aes(x=date,y=percent_corrupted)) +
@@ -224,9 +227,11 @@ ggplot(corrupted_sessions) +
   geom_text(aes(x=date("2018-02-06"), y=0.12722298, label="02-06"), hjust=1,vjust=2,colour="blue", alpha=0.5) +
   #scale_x_date(date_minor_breaks = "1 day") +
   geom_rect(aes(xmin=date("2018-03-25"), xmax=date("2018-03-30"), ymin=0, ymax=Inf), alpha=0.01) +
-  geom_text(aes(x=date("2018-03-29"), y=0.6, label="Spring Break,\n only 1 session tracked"), alpha=0.5) +
+  geom_text(aes(x=date("2018-03-29"), y=0.6, label="Spring Break,\n only 2 sessions tracked"), alpha=0.5) +
   ylim(0, 1.05) +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  labs(title="Percent of Inaccurate Sessions Over Time ", y ="percent") +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 
@@ -338,25 +343,25 @@ ggplot() +
 non_remaining = ggplot() +
   geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 0], from=0)$x,
                 density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 0], from=0)$y,
-                color="0")) +
+                color="> 0")) +
   geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 5], from=5)$x,
                 density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 5], from=5)$y,
-                color="5")) +
+                color="> 5")) +
   geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 10], from=10)$x,
                 density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 10], from=10)$y,
-                color="10")) +
+                color="> 10")) +
   geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 15], from=15)$x,
                 density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 15], from=15)$y,
-                color="15")) +
+                color="> 15")) +
   geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 20], from=20)$x,
                 density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 20], from=20)$y,
-                color="20")) +
-  xlim(0, 100) +
-  xlab("session duration in minutes") +
-  ylab("density") + 
+                color="> 20")) +
+  xlim(0, 150) +
+  labs(title="Distribution of Session Duration Group By Session Duration",x="session duration in minutes", y="density") +
+  theme(plot.title = element_text(hjust=0.5)) + 
   scale_colour_manual(
     name = "current session time",
-    values =c('0'="#009ee3",'5'="#00a3c9", '10'="#00a6aa", "15"="#00a989","20"="#2eac66"))
+    values =c('> 0'="#009ee3",'> 5'="#00a3c9", '> 10'="#00a6aa", "> 15"="#00a989","> 20"="#2eac66"))
 
 non_remaining
 ```
@@ -399,7 +404,7 @@ wait_time_plot = ggplot(temp_df_melted) +
   geom_point(aes(x=t, y=wait_time, group=metric, color=metric)) +
   geom_line(aes(x=t, y=wait_time, group=metric, color=metric)) + 
   ylab("remaining session duration in minutes") 
-
+  
 #wait_time_plot
 ```
 
@@ -435,7 +440,7 @@ up25_session = ggplot(temp_df %>%
   ylab("duration in minutes")
 
 grid.arrange(sub25_sessions, up25_session, 
-             top = grid::textGrob("Wait Time vs Current Session Time",
+             top = grid::textGrob("Remaining Session Duration vs Current Session Duration",
                                   gp=grid::gpar(fontsize=12,font=1)))
 ```
 
@@ -457,7 +462,7 @@ up25_session = ggplot(temp_df %>%
   xlab("current session duration")
 
 grid.arrange(sub25_sessions, up25_session, 
-             top = grid::textGrob("Wait Time vs Current Session Time",
+             top = grid::textGrob("Remaining Session Duration vs Current Session Duration",
                                   gp=grid::gpar(fontsize=12,font=1)))
 ```
 
@@ -470,17 +475,16 @@ mean_plot = ggplot(temp_df %>% head(4)) +
   geom_text(aes(x=t, y=mean_wait, label=round(mean_wait,1)), 
             check_overlap = TRUE,
             vjust = -1) + 
-  xlab("current session time") +
-  ylim(14, 16.5) + 
-  theme(legend.position="none")
+  ylim(14, 16.5) 
 
 median_plot = ggplot(temp_df %>% head(5)) +
   geom_point(aes(x=t, y=median_wait), colour="blue") +
   geom_line(aes(x=t, y=median_wait), colour="blue") +
   geom_text(aes(x=t, y=median_wait, label=round(median_wait,1)), 
             check_overlap = TRUE,
-            vjust = -1) +
-  xlab("current session time") + theme(legend.position="none") + 
+            vjust = -1) + 
+  labs(title="Median Remaining Session Duration vs. Current Session Duration", x="current Session time", y="duration in minutes") +
+  theme(legend.position="none", plot.title = element_text(hjust = 0.5)) +
   ylim(4, 6.5)
 
 #grid.arrange(mean_plot, median_plot)
