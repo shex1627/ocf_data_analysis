@@ -22,10 +22,8 @@ library(gridExtra)
 ```
 
 # Introduction
-I am a volunteer staff for the Open Computing Facility (OCF) at the University of California, Berkeley, where we 
-provide free computer access to all students. Additionally, we also let students print maximum of 10 pages per day and 100 pages per semester.  
-
-As a staff who spends average 7 hours per day in the lab, I often see people waiting for a computer. I wonder if I can have a decent estimate of when people have to wait for a computer. To break down the question, I first try to estimate the wait time for a single computer, since I sometimes have to wait for the particular computer at the corner of the lab. In this post, I will explore how does a desktop session remaining duration distribution changes conditioned on the current session duration. We define **current session duration** the time a student has been on a computer, and the **remaining session duration** how long it will take for him to leave to computer.  
+I am a volunteer staff member for the Open Computing Facility (OCF) at the University of California, Berkeley, where we provide free computer access to all students. Additionally, we also let students print a maximum of 10 pages per day and 100 pages per semester.
+As a staff member who spends an average of 7 hours per day in the lab, I often see people waiting for a computer. I wonder if I can have a decent estimate of when people have to wait for a computer. To break down the question, I first try to estimate the wait time for a single computer, since I sometimes have to wait for the particular computer at the corner of the lab. In this post, I will explore how does a desktop session remaining duration distribution changes conditioned on the current session duration. We define current session duration the time a student has been on a computer, and the remaining session duration how long it will take for him to leave to computer.  
 
 # Session Dataset 
 
@@ -34,7 +32,7 @@ sessions <- read.csv("~/remote/ocf_boc/data/session_duration_public.csv", string
 staff_sessions <- read.csv("~/remote/ocf_boc/data/staff_session_duration_public.csv", stringsAsFactors=FALSE,na.strings = "NULL")
 ```
 
-The dataset we use is the lab session data this semester. Below is a snippet of the session data. The field "host" represents each desktop. The field "duration" measure the duration of a session by minutes. 
+The dataset we use is the lab session data this semester. Below is a snippet of the session data. The field “host” represents each desktop. The field “duration” measures the duration of a session by minutes. 
 
 ```{r cleaning}
 sessions = sessions %>% 
@@ -76,15 +74,49 @@ sp18_wait = sp18 %>%
 
 Here are the procedures I use to clean the data:  
 
-1. Because the lab volunteer staff often uses the desktops much longer than regular users, who mostly come to the lab to print, I exclude all sessions from the volunteer staff.   
+1. Because the lab volunteer staff often uses the desktops much longer than regular users and have very different login patterns, I exclude all sessions from the volunteer staff.   
 
-2. I filter out sessions that have 0 or negative durations. This is mostly a data engineering issue because it is physically very difficult and rare that some user logins and logouts within 1-2 seconds to have a 0 session duration.  
+2. I exclude sessions that have 0 or negative durations. This is mostly a data engineering issue because it is physically very difficult and rare that some user logins and logouts within 1-2 seconds to have a 0 session duration.  
 
-3. Filter out sessions from host "blizzard.ocf.berkeley.edu" and "eruption.ocf.berkeley" because they are the front desk desktop and desktop specific for volunteer staff to help student organizations with hosting websites.  
+3. I exclude sessions from host "blizzard" and "eruption" because they are desktops exclusive to front desk staff members and volunteer staff memebers. 
+
+4. I exclude sessions during the weekends because weekend sessions are often longer than the weekdays'. The table below shows each weekday's mean and median session duration. The weekends are highlighted. 
+
+```{r weekend_effect, fig.width=7, fig.height=3}
+weekend_effects = sp18 %>% 
+  group_by(day_of_week=weekdays(date(start))) %>%
+  summarise(mean_duration = mean(duration),
+            median_duration = median(duration)) %>% 
+  arrange(desc(median_duration))
+
+weekday_str = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", 
+  "Friday", "Saturday")
+
+median_weekend_effect = ggplot(weekend_effects) +
+  geom_point(aes(x=day_of_week, y=median_duration)) +
+  geom_line(aes(x=day_of_week, y=median_duration), colour="blue") +
+  scale_x_discrete(limits = weekday_str)
+
+mean_weekend_effect = ggplot(weekend_effects) +
+  geom_point(aes(x=day_of_week, y=mean_duration)) +
+  geom_line(aes(x=day_of_week, y=mean_duration), colour="blue") +
+  scale_x_discrete(limits = weekday_str)
+
+t1 <- ttheme_default(core=list(
+#        fg_params=list(fontface=c(rep("plain", 4), "bold.italic")),
+        bg_params = list(fill=c("#6BAED6", "#6BAED6", rep(c("grey95", "grey90"),
+                                    length.out=5)))
+        ))
+
+grid.table(weekend_effects, theme=t1)
+```
+
 
 # Data Adjustments  
 
-Recall that there used to be a bug in our session tracking infrastructure that we could only record a session's start time at the beginning of the minute (know more about the bug from one of my [previous post](http://ftdalpha.com/2018/02/20/work-at-ocf-1.html). As a result, lots of session appear to "start" around the beginning of the minute but they actually started the minute before. See below figure about the distribution of session start seconds, the red line is 1/60, the ideal proportion if all session start and end are uniformly random. 
+There used to be a bug in the lab's session tracking infrastructure: we could only record a session's start time at the beginning of the minute (know more about the bug from one of my [previous post](http://ftdalpha.com/2018/02/20/work-at-ocf-1.html). As a result, lots of sessions appear to "start" around the beginning of the minute, but they actually started the minute before. 
+
+See figure below about the distribution of session start seconds. 
 
 
 ```{r include=F, eval=F}
@@ -99,23 +131,23 @@ ggplot() +
 
 ```{r start_end_seconds}
 ggplot() +
-  geom_bar(aes(x=second(sp18$start))) +
-  geom_hline(yintercept =  1/60 * length(second(sp18$start)), color="red") + 
-  xlab("session start second")
+  geom_bar(aes(x=second(sp18_weekdays$start))) +
+  geom_hline(yintercept =  1/60 * length(second(sp18_weekdays$start)), color="red") + 
+  xlab("session start second") 
 ```
 
 ```{r include=F, eval=F}
 ggplot() +
-  geom_bar(aes(x=second(sp18$start[date(sp18$start) <= "2018-02-05"]), 
-               group=date(sp18$start[date(sp18$start) <= "2018-02-05"]),
-               fill=factor(date(sp18$start[date(sp18$start) <= "2018-02-05"]))), colour="black")
+  geom_bar(aes(x=second(sp18_weekdays$start[date(sp18_weekdays$start) <= "2018-02-05"]), 
+               group=date(sp18_weekdays$start[date(sp18_weekdays$start) <= "2018-02-05"]),
+               fill=factor(date(sp18_weekdays$start[date(sp18_weekdays$start) <= "2018-02-05"]))), colour="black")
 ```
 
 ```{r include=F, eval=F}
 ggplot() +
-  geom_bar(aes(x=second(sp18$start[date(sp18$start) > "2018-02-05"]), 
-               group=date(sp18$start[date(sp18$start) > "2018-02-05"]),
-               fill=factor(date(sp18$start[date(sp18$start) > "2018-02-05"]))), colour="black") +
+  geom_bar(aes(x=second(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]), 
+               group=date(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]),
+               fill=factor(date(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]))), colour="black") +
   xlab("start second")
 # +
 #  theme(legend.position="none")
@@ -123,7 +155,7 @@ ggplot() +
 ```
 
 ```{r include=F, eval=F}
-post05 = sp18 %>% filter(date(start) > "2018-02-05") 
+post05 = sp18_weekdays %>% filter(date(start) > "2018-02-05") 
 # starting second 3 has highest count
 ggplot(post05 %>% count(hour=hour(start),second=second(start)) %>% filter((hour < 19) & (hour > 8))) +
   geom_line(aes(x=hour, y=n, color=factor(second), group=second)) +
@@ -138,7 +170,7 @@ ggplot(post05 %>% count(hour=hour(start),second=second(start)) %>% filter((hour 
 To find out the time interval when sessions data that are corrupted, I make a plot shows the percentage of sessions with start seconds < 4 against time. The darker and bigger the dot is, the more sessions are there in the day.    
 
 ```{r corrupted_sessions_host, include=F}
-#corrupted_sessions = data.frame(sp18 %>% 
+#corrupted_sessions = data.frame(sp18_weekdays %>% 
 #                    filter(date(start) > "2018-02-05") %>% 
 #                    mutate(if_corrupted = second(start) == 3 ) %>% 
 #                    group_by(date=date(start), host) %>% 
@@ -152,10 +184,10 @@ To find out the time interval when sessions data that are corrupted, I make a pl
 #, size=num_session
 ```
 
-We can see the percentage is abnormally high until early February. The "peak" in the end of March is Spring break. As the graph below show, after Feb 6th, the session tracking system goes back to normal again. 
+We can see the percentage is abnormally high until early February. The "peak" in the end of March is Spring break. As the graph below show, after Feb 6th, the session tracking system goes back to normal again. ## not clear ##
 
 ```{r corrupted_sessions}
-corrupted_sessions = data.frame(sp18 %>% 
+corrupted_sessions = data.frame(sp18_weekdays %>% 
                     mutate(if_corrupted = second(start) < 4) %>% 
                     group_by(date=date(start)) %>% 
                     summarise(num_corrupted=sum(if_corrupted),
@@ -163,18 +195,38 @@ corrupted_sessions = data.frame(sp18 %>%
                     mutate(percent_corrupted=num_corrupted/num_session))
 
 corrupted_session_plot = ggplot(corrupted_sessions) +
-  geom_point(aes(x=date,y=percent_corrupted, color=-num_session, size=num_session)) +
+  geom_point(aes(x=date,y=percent_corrupted,size=num_session), alpha=0.5) +
   scale_x_date(date_minor_breaks = "1 day") +
-  ylim(0, 1.05) + 
-  theme(legend.position = "bottom")
-
-c_session_plot_small = ggplot(corrupted_sessions %>% filter(month(date) == 2) %>% head(10)) +
-  geom_point(aes(x=date,y=percent_corrupted, color=-num_session, size=num_session))+ 
-  geom_line(aes(x=date,y=percent_corrupted)) + 
-  scale_x_date(date_minor_breaks = "1 day") +
+  ylim(0, 1.05) +
   theme(legend.position = "none")
 
-grid.arrange(corrupted_session_plot, c_session_plot_small)
+c_session_plot_small = ggplot(corrupted_sessions %>% filter(month(date) == 2) %>% head(10)) +
+  #geom_point(aes(x=date,y=percent_corrupted), alpha=0.5)+ 
+  geom_line(aes(x=date,y=percent_corrupted)) + 
+  geom_line(aes(x=date,y=percent_corrupted)) +
+  scale_x_date(date_minor_breaks = "1 day") + 
+  theme(legend.position = "top")+
+  ylim(0, 1.05) 
+
+#grid.arrange(corrupted_session_plot, c_session_plot_small)
+```
+
+```{r corrupted_sessions2}
+ggplot(corrupted_sessions) +
+  #geom_point(aes(x=date,y=percent_corrupted), alpha=0.5) +
+  geom_line(aes(x=date,y=percent_corrupted)) +
+  geom_point(aes(x=date("2018-02-05"), y=0.88088235, size=2), colour="red", alpha=0.5)+
+  geom_point(aes(x=date("2018-02-06"), y=0.12722298, size=2), colour="blue", alpha=0.5) +
+  geom_segment(aes(x=date("2018-02-05"), xend=date("2018-02-06"),
+                y=0.88088235, yend=0.12722298),
+               colour="blue") +
+  geom_text(aes(x=date("2018-02-05"), y=0.88088235, label="02-05"), hjust=1,vjust=2,colour="red", alpha=0.5)+
+  geom_text(aes(x=date("2018-02-06"), y=0.12722298, label="02-06"), hjust=1,vjust=2,colour="blue", alpha=0.5) +
+  #scale_x_date(date_minor_breaks = "1 day") +
+  geom_rect(aes(xmin=date("2018-03-25"), xmax=date("2018-03-30"), ymin=0, ymax=Inf), alpha=0.01) +
+  geom_text(aes(x=date("2018-03-29"), y=0.6, label="Spring Break,\n only 1 session tracked"), alpha=0.5) +
+  ylim(0, 1.05) +
+  theme(legend.position = "none")
 ```
 
 
@@ -198,16 +250,16 @@ mutate(adjusted_duration=duration))
 
 Let's have a rough look at the difference before and after the adjustment through some summary statistics.  
 ```{r after_adjustment, fig.height=1.5, fig.width=7}
-y1=as.numeric(table(round(sp18$duration, 1))[1:101])
-y2=as.numeric(table(round(sp18$adjusted_duration, 1))[1:101])
+y1=as.numeric(table(round(sp18_weekdays$duration, 1))[1:101])
+y2=as.numeric(table(round(sp18_weekdays$adjusted_duration, 1))[1:101])
 x = seq(0, 10, 0.1)
 y = rbind(data.frame(count=y1, duration=x,type="original"),
           data.frame(count=y2, duration=x,type="adjusted"))
 
 # summary of all durations
 summary_df = data.frame(rbind(
-  adjusted_duration = summary(sp18$adjusted_duration),
-  original_duration = summary(sp18$duration)
+  adjusted_duration = summary(sp18_weekdays$adjusted_duration),
+  original_duration = summary(sp18_weekdays$duration)
 ))
 
 grid.table(summary_df)
@@ -217,11 +269,11 @@ There isn't much visible difference but I think it is still important to take go
 We can see 75% of the sessions are under 14 minutes. And 95% of the sessions are under 65 min. In fact, 99% of the sessions are shorter than 145min. Maybe most of the users come to the lab just to print (I will investigate further in part 2).  
 
 ```{r}
-#View(sp18 %>% mutate(start_second = second(start)) %>% count(date=date(start), start_second) %>%
+#View(sp18_weekdays %>% mutate(start_second = second(start)) %>% count(date=date(start), start_second) %>%
 #       tidyr::spread(start_second, n))
 
 
-#View(data.frame(sp18 %>% 
+#View(data.frame(sp18_weekdays %>% 
 #                    mutate(if_corrupted = second(start) < 10) %>% 
 #                    group_by(date=date(start)) %>% 
 #                    summarise(num_corrupted=sum(if_corrupted),
@@ -231,7 +283,7 @@ We can see 75% of the sessions are under 14 minutes. And 95% of the sessions are
 
 ```{r weekdays, eval=F}
 # enough evidence to separate between 
-sp18 %>% group_by(weekday=weekdays(date(start))) %>% summarise(mean=mean(adjusted_duration),
+sp18_weekdays %>% group_by(weekday=weekdays(date(start))) %>% summarise(mean=mean(adjusted_duration),
                                                        median=median(adjusted_duration),
                                                        below5=mean(adjusted_duration<5)
                                                        ) %>% arrange(mean)
@@ -245,20 +297,20 @@ While taking a closer look, it seems like lots of sessions are under 100 minutes
 
 ```{r session_histogram, eval=F}
 duration_hist = ggplot()+
-  geom_histogram(aes(sp18$adjusted_duration), bins = 500) +
+  geom_histogram(aes(sp18_weekdays$adjusted_duration), bins = 500) +
   xlim(0, 200) +
   xlab("duration in minutes")+
-  geom_vline(xintercept=quantile(sp18$adjusted_duration,c(0.8, 0.9,0.99)), col="red")+
-  geom_text(aes(x=quantile(sp18$adjusted_duration,c(0.8, 0.9,0.99))+5,
+  geom_vline(xintercept=quantile(sp18_weekdays$adjusted_duration,c(0.8, 0.9,0.99)), col="red")+
+  geom_text(aes(x=quantile(sp18_weekdays$adjusted_duration,c(0.8, 0.9,0.99))+5,
                 y=c(1250, 1250, 1250), 
                 label=c("80%","90%","99%")),color="blue")
 
 duration_hist_short = ggplot()+
-  geom_histogram(aes(sp18$adjusted_duration), bins = 30, color="gray") +
+  geom_histogram(aes(sp18_weekdays$adjusted_duration), bins = 30, color="gray") +
   xlim(0, 30)+
   xlab("duration in minutes") +
-  geom_vline(xintercept=quantile(sp18$adjusted_duration,seq(0.25, 0.75,0.25)), col="red") +
-  geom_text(aes(x=quantile(sp18$adjusted_duration,seq(0.25, 0.75,0.25))+2,
+  geom_vline(xintercept=quantile(sp18_weekdays$adjusted_duration,seq(0.25, 0.75,0.25)), col="red") +
+  geom_text(aes(x=quantile(sp18_weekdays$adjusted_duration,seq(0.25, 0.75,0.25))+2,
                 y=c(3999, 3500, 3000), 
                 label=c("25%","50%","75%")),color="blue")
 
@@ -268,7 +320,7 @@ grid.arrange(duration_hist_short, duration_hist, ncol=2)
 
 ```{r quantile_graph, eval=F}
 percentiles = seq(0.05, 1, 0.05)
-quantiles = round(quantile(sp18$adjusted_duration, percentiles), 1)
+quantiles = round(quantile(sp18_weekdays$adjusted_duration, percentiles), 1)
 
 ggplot() +
   geom_line(aes(x=percentiles, y=quantiles)) +
@@ -309,6 +361,8 @@ non_remaining = ggplot() +
 non_remaining
 ```
 
+
+
 ```{r survival}
 # data frame needed for wait time analysis 
 temp_df = data.frame()
@@ -328,6 +382,14 @@ colnames(temp_df) = c("t", "mean_wait", "median_wait", "q1", "q3", "count")
 #temp_df
 ```
 
+```{r include=F}
+cor(temp_df$mean_wait, temp_df$median_wait)
+```
+
+I am going to use median as a metric instead of mean because of the following:  
+1. mean and median has 0.9956232 correlation. So they are only different in scale.  
+2. mean is not a good metric since the distribution is extremely right skewed.  
+
 ```{r expected_wait_time, eval=F}
 # showing the mean and median wait time conditioned on  the current session time
 temp_df_melted = temp_df %>% 
@@ -341,20 +403,56 @@ wait_time_plot = ggplot(temp_df_melted) +
 #wait_time_plot
 ```
 
-```{r expected_wait_time_plot}
+```{r expected_wait_time_plot_declutter}
+sub25_sessions = ggplot(temp_df %>% 
+         filter(t<=25)) + 
+  geom_line(aes(x=t, y=median_wait), colour="#0078ff") +
+  geom_line(aes(x=t, y=q1), colour="#00dfff") +
+  geom_line(aes(x=t, y=q3), colour="#000d6b") +
+  geom_text(aes(x=t[1], y=median_wait[1], label="q2"), hjust=1, colour="#0078ff") + 
+  geom_text(aes(x=t[1], y=q1[1], label="q1"), hjust=1,colour="#00dfff") + 
+  geom_text(aes(x=t[1], y=q3[1], label="q3"), hjust=1,colour="#000d6b") + 
+#  geom_hline(yintercept=(temp_df %>% filter(t<=25))$median_wait[1], 
+#         linetype="dotted", colour="#0078ff") +
+#  geom_hline(yintercept=(temp_df %>% filter(t<=25))$q1[1], linetype="dotted", colour="#00dfff") +
+#  geom_hline(yintercept=(temp_df %>% filter(t<=25))$q3[1], linetype="dotted", colour="#000d6b") +
+  xlab("current session duration") +
+  ylab("duration in minutes")
+
+up25_session = ggplot(temp_df %>% 
+         filter(t>25)) + 
+  geom_line(aes(x=t, y=median_wait), colour="#0078ff") +
+  geom_line(aes(x=t, y=q1), colour="#00dfff") +
+  geom_line(aes(x=t, y=q3), colour="#000d6b") +
+  geom_text(aes(x=t[1], y=median_wait[1], label="q2"), hjust=1, colour="#0078ff") + 
+  geom_text(aes(x=t[1], y=q1[1], label="q1"), hjust=1,colour="#00dfff") + 
+  geom_text(aes(x=t[1], y=q3[1], label="q3"), hjust=1,colour="#000d6b") + 
+  geom_hline(yintercept=(temp_df %>% filter(t>25))$median_wait[1], 
+         linetype="dotted", colour="#0078ff") +
+  geom_hline(yintercept=(temp_df %>% filter(t>25))$q1[1], linetype="dotted", colour="#00dfff") +
+  geom_hline(yintercept=(temp_df %>% filter(t>25))$q3[1], linetype="dotted", colour="#000d6b") +
+  xlab("current session duration")+
+  ylab("duration in minutes")
+
+grid.arrange(sub25_sessions, up25_session, 
+             top = grid::textGrob("Wait Time vs Current Session Time",
+                                  gp=grid::gpar(fontsize=12,font=1)))
+```
+
+```{r expected_wait_time_plot, include=F}
 sub25_sessions = ggplot(temp_df %>% 
          filter(t<=25), aes(x=t, y=median_wait)) + 
-  geom_point(aes(size=count),colour="blue") +
+#  geom_point(colour="blue") +
   geom_line(colour="blue") +
-  geom_point(aes(x=t, y=mean_wait), colour="red") + 
+#  geom_line(aes(x=t, y=mean_wait), colour="red") + 
   geom_errorbar(aes(ymin=q1, ymax=q3)) +
   xlab("current session duration")
 
 up25_session = ggplot(temp_df %>% 
          filter(t>25), aes(x=t, y=median_wait)) + 
-  geom_point(aes(size=count),colour="blue") +
+#  geom_point(colour="blue") +
   geom_line(colour="blue") +
-  geom_point(aes(x=t, y=mean_wait), colour="red") + 
+#  geom_line(aes(x=t, y=mean_wait), colour="red") + 
   geom_errorbar(aes(ymin=q1, ymax=q3))+
   xlab("current session duration")
 
@@ -367,7 +465,7 @@ As current session increases, expected wait time increases. This increasing patt
 
 ```{r dip_on_wait_time_plot}
 mean_plot = ggplot(temp_df %>% head(4)) +
-  geom_point(aes(x=t, y=mean_wait, size=mean_wait), colour="red") +
+  geom_point(aes(x=t, y=mean_wait), colour="red") +
   geom_line(aes(x=t, y=mean_wait), colour="red") +
   geom_text(aes(x=t, y=mean_wait, label=round(mean_wait,1)), 
             check_overlap = TRUE,
@@ -377,7 +475,7 @@ mean_plot = ggplot(temp_df %>% head(4)) +
   theme(legend.position="none")
 
 median_plot = ggplot(temp_df %>% head(5)) +
-  geom_point(aes(x=t, y=median_wait, size=median_wait), colour="blue") +
+  geom_point(aes(x=t, y=median_wait), colour="blue") +
   geom_line(aes(x=t, y=median_wait), colour="blue") +
   geom_text(aes(x=t, y=median_wait, label=round(median_wait,1)), 
             check_overlap = TRUE,
@@ -385,9 +483,9 @@ median_plot = ggplot(temp_df %>% head(5)) +
   xlab("current session time") + theme(legend.position="none") + 
   ylim(4, 6.5)
 
-grid.arrange(mean_plot, median_plot)
+#grid.arrange(mean_plot, median_plot)
+median_plot
 ```
-
 
 since many duration are cluster at the 2 - 3 min mark, we can anticipate a session will last only around 2-3min or so.
 As a result, remaining session time (both mean and median) is the lowest when the current session time is 2-3 min.
