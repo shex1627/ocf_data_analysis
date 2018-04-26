@@ -1,12 +1,12 @@
 ---
-title: "OCF Lab Session Analysis Part 1: How Long Does It Take To Get a Computer"
+title: 'OCF Lab Session Analysis Part 1: How Long Does It Take To Get a Computer'
 author: "Shicheng Huang"
 date: "April 8, 2018"
-header-includes:
-  - \usepackage{amsmath}
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
+  word_document: default
+header-includes: \usepackage{amsmath}
 ---
 ```{r setup, echo=FALSE}
 knitr::opts_chunk$set(echo = F, cache = T, warning = F, message = F)
@@ -22,8 +22,9 @@ library(gridExtra)
 ```
 
 # Introduction
-I am a volunteer staff member for the Open Computing Facility (OCF) at the University of California, Berkeley, where we provide free computer access to all students. Additionally, we also let students print a maximum of 10 pages per day and 100 pages per semester.
-As a staff member who spends an average of 7 hours per day in the lab, I often see people waiting for a computer. I wonder if I can have a decent estimate of when people have to wait for a computer. To break down the question, I first try to estimate the wait time for a single computer, since I sometimes have to wait for the particular computer at the corner of the lab. In this post, I will explore how does a desktop session remaining duration distribution changes conditioned on the current session duration. We define current session duration the time a student has been on a computer, and the remaining session duration how long it will take for him to leave to computer.  
+I am a volunteer staff member at the Open Computing Facility (OCF) at the University of California, Berkeley, where we provide free computer access to all students. We also let students print a maximum of 10 pages per day and 100 pages per semester.  
+
+As a staff member who spends an average of 7 hours per day in the lab, I often see people waiting for a computer. I wonder if I can get a decent estimate of when people have to wait for a computer. To break down the question, I first try to estimate the wait time for a single computer. Because I sometimes have to wait for the particular computer at the corner of the lab. In this post, I will explore if I can get a good estimate of when a user will leave given how long he/she has been using a computer.  
 
 # Session Dataset 
 
@@ -32,7 +33,7 @@ sessions <- read.csv("~/remote/ocf_boc/data/session_duration_public.csv", string
 staff_sessions <- read.csv("~/remote/ocf_boc/data/staff_session_duration_public.csv", stringsAsFactors=FALSE,na.strings = "NULL")
 ```
 
-The dataset we use is the lab session data this semester. Below is a snippet of the session data. The field “host” represents each desktop. The field “duration” measures the duration of a session by minutes. 
+The dataset we use is the lab session data from this semester. Below is a snippet of the session data. The field “host” represents each desktop. The field “duration” measures the duration of a session by minutes. 
 
 ```{r cleaning}
 sessions = sessions %>% 
@@ -76,9 +77,9 @@ Here are the procedures I use to clean the data:
 
 1. Exclude all sessions from the volunteer staff because lab volunteer staff members often have longer session durations and login after lab open hours.  
 
-2. Exclude sessions that have 0 or negative durations. Because they are not accurate and extremely rare (6 out of 33k sessions this semester).  
+2. Exclude sessions that have 0 or negative durations because they are not accurate and extremely rare (6 out of 33k sessions this semester).  
 
-3. Exclude sessions from host "blizzard" and "eruption" because they are desktops exclusive to front desk staff members and volunteer staff memebers. 
+3. Exclude sessions from host "blizzard" and "eruption" because they are desktops exclusive to front desk staff members and volunteer staff members. 
 
 4. Exclude sessions during the weekends because weekend sessions are often longer than the weekdays'. The table below shows each weekday's mean and median session duration. The weekends are highlighted. 
 
@@ -114,20 +115,9 @@ grid.table(weekend_effects, theme=t1)
 
 # Data Adjustments  
 
-There used to be a bug in the lab's session tracking infrastructure: we could only record a session's start time at the beginning of the minute (know more about the bug from one of my [previous post](http://ftdalpha.com/2018/02/20/work-at-ocf-1.html). As a result, lots of sessions appear to "start" around the beginning of the minute, but they actually started the minute before. 
+There used to be a bug in the lab's session tracking infrastructure: we could only record a session's start time at the beginning of the minute (More about the bug from one of my [previous post](http://ftdalpha.com/2018/02/20/work-at-ocf-1.html). For instance, if a session started at 12:**30:45**, it would appear in our data as 12:**31:03**.  
 
-See figure below about the distribution of session start seconds. 
-
-
-```{r include=F, eval=F}
-ggplot() +
-  geom_bar(aes(x=second(sp18$end))) +
-  geom_hline(yintercept =  1/60 * length(second(sp18$start)), color="red") + 
-  xlab("session end second")
-
-#The session end seconds also have a peak on 0 and 1, I suspect this is due to a desktop logs out abnormally (from a computer freeze) and some other reasons. But I don't think the small peak of session end seconds would affect the analysis as much since not many sessions are affected.  
-```
-
+See figure below for the distribution of session start seconds. 
 
 ```{r start_end_seconds}
 ggplot() +
@@ -136,55 +126,9 @@ ggplot() +
   xlab("session start second") 
 ```
 
-```{r include=F, eval=F}
-ggplot() +
-  geom_bar(aes(x=second(sp18_weekdays$start[date(sp18_weekdays$start) <= "2018-02-05"]), 
-               group=date(sp18_weekdays$start[date(sp18_weekdays$start) <= "2018-02-05"]),
-               fill=factor(date(sp18_weekdays$start[date(sp18_weekdays$start) <= "2018-02-05"]))), colour="black")
-```
+Notice due to the bug, the counts of sessions that "started" at second 1, 2 or 3 are abnormally high, 2 to 10 times higher than seconds 4 to 59. Also because second 4 through 59 all have similar counts, I assume the sessions start second should be uniformly distributed (i.e each second should have 1/60 of the total counts).  
 
-```{r eval=F}
-ggplot() +
-  geom_bar(aes(x=second(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]), 
-               group=date(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]),
-               fill=factor(date(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]))), colour="black") +
-  xlab("start second")
-# +
-#  theme(legend.position="none")
-# for some reason 3 is abnormally high, and 0, 1, 2 are low
-```
-
-```{r eval=F}
-post05 = sp18_weekdays %>% filter(date(start) > "2018-02-05") 
-# starting second 3 has highest count
-ggplot(post05 %>% count(hour=hour(start),second=second(start)) %>% filter((hour < 19) & (hour > 8))) +
-  geom_line(aes(x=hour, y=n, color=factor(second), group=second)) +
-  scale_x_continuous(breaks=0:24,label=0:24)+
-  theme(legend.position="none")
-# starting second 3 is always the highest
-
-#View(post05 %>% count(hour=hour(start),second=second(start)) %>% tidyr::spread(second, n))
-```
-
-
-To find out the time interval when sessions data that are corrupted, I make a plot shows the percentage of sessions with start seconds < 4 against time. The darker and bigger the dot is, the more sessions are there in the day.    
-
-```{r corrupted_sessions_host, include=F}
-#corrupted_sessions = data.frame(sp18_weekdays %>% 
-#                    filter(date(start) > "2018-02-05") %>% 
-#                    mutate(if_corrupted = second(start) == 3 ) %>% 
-#                    group_by(date=date(start), host) %>% 
-#                    summarise(num_corrupted=sum(if_corrupted),
-#                             num_session=n()) %>%
-#                    mutate(percent_corrupted=num_corrupted/num_session))
-#ggplot(corrupted_sessions) +
-#  geom_point(aes(x=date,y=percent_corrupted, group=host, color=host, size=num_session))+ scale_x_date(date_minor_breaks = "1 day") +
-#  geom_line(aes(x=date,y=percent_corrupted, group=host, color=host))+ scale_x_date(date_minor_breaks = "1 day")
-
-#, size=num_session
-```
-
-We can see the percentage is abnormally high until early February. The "peak" in the end of March is Spring break. As the graph below show, after Feb 6th, the session tracking system goes back to normal again. ## not clear ##
+To find out when sessions data was corrupted, I plots the percentage of sessions with "start second" < 4 against time.  
 
 ```{r corrupted_sessions}
 corrupted_sessions = data.frame(sp18_weekdays %>% 
@@ -193,24 +137,6 @@ corrupted_sessions = data.frame(sp18_weekdays %>%
                     summarise(num_corrupted=sum(if_corrupted),
                               num_session=n()) %>%
                     mutate(percent_corrupted=num_corrupted/num_session))
-```
-
-```{r corrupted_session_plot, eval=F}
-corrupted_session_plot = ggplot(corrupted_sessions) +
-  geom_point(aes(x=date,y=percent_corrupted,size=num_session), alpha=0.5) +
-  scale_x_date(date_minor_breaks = "1 day") +
-  ylim(0, 1.05) +
-  theme(legend.position = "none")
-
-c_session_plot_small = ggplot(corrupted_sessions %>% filter(month(date) == 2) %>% head(10)) +
-  #geom_point(aes(x=date,y=percent_corrupted), alpha=0.5)+ 
-  geom_line(aes(x=date,y=percent_corrupted)) + 
-  geom_line(aes(x=date,y=percent_corrupted)) +
-  scale_x_date(date_minor_breaks = "1 day") + 
-  theme(legend.position = "top")+
-  ylim(0, 1.05) 
-
-grid.arrange(corrupted_session_plot, c_session_plot_small)
 ```
 
 
@@ -230,17 +156,15 @@ ggplot(corrupted_sessions) +
   geom_text(aes(x=date("2018-03-29"), y=0.6, label="Spring Break,\n only 2 sessions tracked"), alpha=0.5) +
   ylim(0, 1.05) +
   theme(legend.position = "none") +
-  labs(title="Percent of Inaccurate Sessions Over Time ", y ="percent") +
+  labs(title="Percentage of Sessions with 'start second' < 4 Over Time ", y="",x="") +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
+As the graph above shows, after Feb 5th, the session tracking system returned to normal again.  
 
-Thus, for all the session before 2018-02-05, I will adjust the duration by adding a random variable that is uniformly
-distributed from the set {0, 1, 2,...55 + $S_{session\,start\,second}$}.   
-Because if the session's recorded start time is $X$ given our tracking system was malfunctioning, the real session start
-time could be from 0 to $X$ or 5 to 55 from the previous minute. So the real session duration should be anywhere between 0 to $X + 1 + 55$ seconds longer. 
+Thus, for all the sessions before 2018-02-05, I adjust the duration by adding $X$ seconds, where $X$ uniform distribution on the set {0, 1, 2,...55 + $S_{session\,start\,second}$}. For instance, if the session's recorded start second is 3, given our tracking system was malfunctioning, the real session start time can be any time from 0 to 3 seconds, or 4 to 59 seconds from the previous minute. The actual duration for the inaccurate session data should be somewhere between 0 to 3, or 3 + 55 seconds longer.  
 
-```{r}
+```{r session_adjustment}
 set.seed(1234)
 sp18 = rbind(
   sp18 %>% filter(date(start) <= "2018-02-05") %>% mutate(adjusted_duration=duration+Vectorize(function(x){sample(0:(x+55),1)/60})(second(start))),
@@ -270,71 +194,14 @@ summary_df = data.frame(rbind(
 grid.table(summary_df)
 ```
 
-There isn't much visible difference but I think it is still important to take good care of the data inaccuracy issue.  
-We can see 75% of the sessions are under 14 minutes. And 95% of the sessions are under 65 min. In fact, 99% of the sessions are shorter than 145min. Maybe most of the users come to the lab just to print (I will investigate further in part 2).  
+Overall each quantile and mean is increased by about 15 seconds. This is significant because the wait time of a computer when the lab is full is often under 100 seconds. Unless we discard the inaccurate data, ####our model to predict wait time may suffer a high percent irreducible errors.####  
 
-```{r}
-#View(sp18_weekdays %>% mutate(start_second = second(start)) %>% count(date=date(start), start_second) %>%
-#       tidyr::spread(start_second, n))
+From the summary statistics, we can also see 50% of the sessions are under 6 minutes because many users leave the lab after printing documents. However, sometimes I have to wait for a non-printing user to get the corner computer, making me wonder if I can have a good guess when will that user leave given how long he/she has been there.
 
 
-#View(data.frame(sp18_weekdays %>% 
-#                    mutate(if_corrupted = second(start) < 10) %>% 
-#                    group_by(date=date(start)) %>% 
-#                    summarise(num_corrupted=sum(if_corrupted),
-#                              num_session=n()) %>%
-#                    mutate(percent_corrupted=num_corrupted/num_session)))
-```
+# Basic Session Survival Analysis
 
-```{r weekdays, eval=F}
-# enough evidence to separate between 
-sp18_weekdays %>% group_by(weekday=weekdays(date(start))) %>% summarise(mean=mean(adjusted_duration),
-                                                       median=median(adjusted_duration),
-                                                       below5=mean(adjusted_duration<5)
-                                                       ) %>% arrange(mean)
-```
-
-# Session Analysis
-
-Lets first look at the distribution of the session duration. Because the raw histogram is extremely skewed, I make two other histograms with x axis limit (0, 500) and (0, 50) respectively.  
-
-While taking a closer look, it seems like lots of sessions are under 100 minutes. To visualize a skewed distribution, we can also see its different quantiles.  
-
-```{r session_histogram, eval=F}
-duration_hist = ggplot()+
-  geom_histogram(aes(sp18_weekdays$adjusted_duration), bins = 500) +
-  xlim(0, 200) +
-  xlab("duration in minutes")+
-  geom_vline(xintercept=quantile(sp18_weekdays$adjusted_duration,c(0.8, 0.9,0.99)), col="red")+
-  geom_text(aes(x=quantile(sp18_weekdays$adjusted_duration,c(0.8, 0.9,0.99))+5,
-                y=c(1250, 1250, 1250), 
-                label=c("80%","90%","99%")),color="blue")
-
-duration_hist_short = ggplot()+
-  geom_histogram(aes(sp18_weekdays$adjusted_duration), bins = 30, color="gray") +
-  xlim(0, 30)+
-  xlab("duration in minutes") +
-  geom_vline(xintercept=quantile(sp18_weekdays$adjusted_duration,seq(0.25, 0.75,0.25)), col="red") +
-  geom_text(aes(x=quantile(sp18_weekdays$adjusted_duration,seq(0.25, 0.75,0.25))+2,
-                y=c(3999, 3500, 3000), 
-                label=c("25%","50%","75%")),color="blue")
-
-grid.arrange(duration_hist_short, duration_hist, ncol=2)
-```
-
-
-```{r quantile_graph, eval=F}
-percentiles = seq(0.05, 1, 0.05)
-quantiles = round(quantile(sp18_weekdays$adjusted_duration, percentiles), 1)
-
-ggplot() +
-  geom_line(aes(x=percentiles, y=quantiles)) +
-  geom_point(aes(x=percentiles, y=quantiles)) +
-  geom_text(aes(x=percentiles[c(5, 10, 15)], y=quantiles[c(5, 10, 15)], label=quantiles[c(5, 10, 15)]), 
-            check_overlap = TRUE,
-            vjust = -1) +
-  ylim(-5, 75)
-```
+Below are the distributions of the session duration when a user has been on a computer for 0, 10, 15, and 20min respectively.  
 
 # Expected Wait Time Given Current Session Duration
 
@@ -366,7 +233,22 @@ non_remaining = ggplot() +
 non_remaining
 ```
 
+Notice nearly all distribution have a peak at the beginning. This means that at any given time, sessions have the highest probability (i.e pdf) of leaving within the first few minutes. However,  the distribution is getting flatter and flatter as current session time increases. In other words, we are less certain about when a user will leave as he stays in the lab longer.  
 
+Here are the steps I use to estimate the wait time of a computer.  
+1. Find how long the user has been using that computer, denote **current session time** X.  
+2. Select all the sessions with duration longer than X.  
+3. Find the 25%, 50% and 75% quantiles of those sessions.  
+3. Subtract the quantiles by X to get the quantiles of **remaining session time**.  
+
+Below are two graphs showing **current session time** X from 0 to 25 and 25 to 75 against **remaining session time**.  
+
+```{r eval=F}
+#I am going to use median as a metric instead of mean because of the following:  
+#1. mean and median has 0.9956232 correlation. So they are only different in scale.  
+#2. mean is not a good metric since the distribution is extremely right skewed. 
+cor(temp_df$mean_wait, temp_df$median_wait)
+```
 
 ```{r survival}
 # data frame needed for wait time analysis 
@@ -387,27 +269,6 @@ colnames(temp_df) = c("t", "mean_wait", "median_wait", "q1", "q3", "count")
 #temp_df
 ```
 
-```{r include=F}
-cor(temp_df$mean_wait, temp_df$median_wait)
-```
-
-I am going to use median as a metric instead of mean because of the following:  
-1. mean and median has 0.9956232 correlation. So they are only different in scale.  
-2. mean is not a good metric since the distribution is extremely right skewed.  
-
-```{r expected_wait_time, eval=F}
-# showing the mean and median wait time conditioned on  the current session time
-temp_df_melted = temp_df %>% 
-  select(t, median_wait, mean_wait) %>% 
-  reshape::melt(id=c("t")) %>% rename(metric=variable, wait_time=value)
-wait_time_plot = ggplot(temp_df_melted) + 
-  geom_point(aes(x=t, y=wait_time, group=metric, color=metric)) +
-  geom_line(aes(x=t, y=wait_time, group=metric, color=metric)) + 
-  ylab("remaining session duration in minutes") 
-  
-#wait_time_plot
-```
-
 ```{r expected_wait_time_plot_declutter}
 sub25_sessions = ggplot(temp_df %>% 
          filter(t<=25)) + 
@@ -421,8 +282,8 @@ sub25_sessions = ggplot(temp_df %>%
 #         linetype="dotted", colour="#0078ff") +
 #  geom_hline(yintercept=(temp_df %>% filter(t<=25))$q1[1], linetype="dotted", colour="#00dfff") +
 #  geom_hline(yintercept=(temp_df %>% filter(t<=25))$q3[1], linetype="dotted", colour="#000d6b") +
-  xlab("current session duration") +
-  ylab("duration in minutes")
+  xlab("current session duration") + ylab("")
+#  ylab("remaining session duration")
 
 up25_session = ggplot(temp_df %>% 
          filter(t>25)) + 
@@ -436,37 +297,14 @@ up25_session = ggplot(temp_df %>%
          linetype="dotted", colour="#0078ff") +
   geom_hline(yintercept=(temp_df %>% filter(t>25))$q1[1], linetype="dotted", colour="#00dfff") +
   geom_hline(yintercept=(temp_df %>% filter(t>25))$q3[1], linetype="dotted", colour="#000d6b") +
-  xlab("current session duration")+
-  ylab("duration in minutes")
+  xlab("current session duration") + ylab("")
 
 grid.arrange(sub25_sessions, up25_session, 
              top = grid::textGrob("Remaining Session Duration vs Current Session Duration",
                                   gp=grid::gpar(fontsize=12,font=1)))
 ```
 
-```{r expected_wait_time_plot, include=F}
-sub25_sessions = ggplot(temp_df %>% 
-         filter(t<=25), aes(x=t, y=median_wait)) + 
-#  geom_point(colour="blue") +
-  geom_line(colour="blue") +
-#  geom_line(aes(x=t, y=mean_wait), colour="red") + 
-  geom_errorbar(aes(ymin=q1, ymax=q3)) +
-  xlab("current session duration")
-
-up25_session = ggplot(temp_df %>% 
-         filter(t>25), aes(x=t, y=median_wait)) + 
-#  geom_point(colour="blue") +
-  geom_line(colour="blue") +
-#  geom_line(aes(x=t, y=mean_wait), colour="red") + 
-  geom_errorbar(aes(ymin=q1, ymax=q3))+
-  xlab("current session duration")
-
-grid.arrange(sub25_sessions, up25_session, 
-             top = grid::textGrob("Remaining Session Duration vs Current Session Duration",
-                                  gp=grid::gpar(fontsize=12,font=1)))
-```
-
-As current session increases, expected wait time increases. This increasing pattern slows down after 25 minutes or so (check the second graph). Also, there is a small dip in the first few minutes, let's take a closer look.  
+As **current session time** increases, almost all quantiles increases. This increasing pattern slows down after 25 minutes or so (check the second graph). Also, there is a small dip in the first graph during the first few points, let's zoom in the first graph and take a closer look.  
 
 ```{r dip_on_wait_time_plot}
 mean_plot = ggplot(temp_df %>% head(4)) +
@@ -478,28 +316,42 @@ mean_plot = ggplot(temp_df %>% head(4)) +
   ylim(14, 16.5) 
 
 median_plot = ggplot(temp_df %>% head(5)) +
-  geom_point(aes(x=t, y=median_wait), colour="blue") +
-  geom_line(aes(x=t, y=median_wait), colour="blue") +
+  geom_point(aes(x=t, y=median_wait), colour="#0078ff") +
+  geom_line(aes(x=t, y=median_wait), colour="#0078ff") +
+  geom_line(aes(x=t, y=q1), colour="#00dfff") +
+  geom_line(aes(x=t, y=q3), colour="#000d6b") +
+  geom_point(aes(x=t, y=q1), colour="#00dfff") +
+  geom_point(aes(x=t, y=q3), colour="#000d6b") +
   geom_text(aes(x=t, y=median_wait, label=round(median_wait,1)), 
             check_overlap = TRUE,
             vjust = -1) + 
-  labs(title="Median Remaining Session Duration vs. Current Session Duration", x="current Session time", y="duration in minutes") +
-  theme(legend.position="none", plot.title = element_text(hjust = 0.5)) +
-  ylim(4, 6.5)
+  geom_text(aes(x=t, y=q1, label=round(q1,1)), 
+            check_overlap = TRUE,
+            vjust = -1) + 
+  geom_text(aes(x=t, y=q3, label=round(q3,1)), 
+            check_overlap = TRUE,
+            vjust = -1) + 
+  labs(title="Median Remaining Session Duration vs. Current Session Duration", x="current session duration", y="duration in minutes") +
+  theme(legend.position="none", plot.title = element_text(hjust = 0.5)) + ylim(0, 21)
 
 #grid.arrange(mean_plot, median_plot)
 median_plot
 ```
 
-since many duration are cluster at the 2 - 3 min mark, we can anticipate a session will last only around 2-3min or so.
-As a result, remaining session time (both mean and median) is the lowest when the current session time is 2-3 min.
+We can see the **remaining session time** is lowest at the 2 min mark for both the 25% and 50% quantile. Even for the 75% quantile, the lowest waiting time is when the session is at 1 min mark, instead of 0. Thus, the waiting time conditioned on **current session duration** first experiences a small decrease, then increases rapidly until the 25min mark, then increases slowly afterward. The overall lesson is, if somebody has been on a computer for a longer time, don't expect him or her to leave any time soon.    
+
+```{r look_up_table, include=F}
+# lookup table i make
+lookup_table = round(temp_df %>% select(t, q1, median_wait, q3) %>% filter(t <= 25),1)
+grid.table(lookup_table)
+```
 
 
 ## Future Directions
 
-In part 1, we learn that a majority of the sessions are short but its distribution is extremely right skew with some unreasonable outliers (700+ minutes). Therefore, it is better to look at different quantiles instead. And we find that knowing how long a session has been (i.e the current session time) can help us infer how long the session will last from the current time (i.e remaining session time), but this heuristic's effectiveness will decrease after current session time exceeds 20 minutes or so.
+In part 1, we learn that a majority of the sessions are short. But the distribution of session duration is extremely right skewed with some unreasonable outlier. The maximum session length of our user this semester is 9+ hours! We also find that knowing how long a session has been (i.e the current session time) can help us infer how long the session will last from the current time (i.e remaining session time), but this heuristic's effectiveness will decrease after current session time exceeds 25 minutes or so.
 
-In the next part, I will examine additional variables **day-of-the-week** and **the computer used**. I do expect sessions during the weekends will be longer because it seems like more people come to the lab just to study instead of printing; and students may favor computers differently because of their locations in the lab.  
+In the next part, I will examine additional variables such as **the computer used**. Students may favor computers closer to the printer; or students may avoid using double monitor computers from the misconception that those computers are for staff members only...
 
 
 

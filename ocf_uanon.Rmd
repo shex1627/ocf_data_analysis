@@ -91,8 +91,8 @@ staff_sessions <- read.csv("~/remote/ocf_boc/data/staff_session_duration_public.
 
 sp18_sessions = sessions %>% 
   filter(end != "") %>%
-#  filter(date(start) >= "2018-01-16") %>%
-  filter((date(start) >= "2017-08-24") & (date(start) <= "2017-12-15")) %>% 
+  filter(date(start) >= "2018-01-16") %>%
+# filter((date(start) >= "2017-08-24") & (date(start) <= "2017-12-15")) %>% 
   mutate(start = get_time_m(start)) %>% 
   mutate(end = get_time_m(end)) 
 
@@ -102,9 +102,9 @@ sp18_public_session = sp18_sessions %>%
   anti_join(staff_sessions, by="id")
 
 sp18_printing = printing %>% 
-#  filter(date(time) >= "2018-01-16") %>% 
-  mutate(time = get_time_m(time)) %>% 
-  filter((date(time) >= "2017-08-24") & (date(time) <= "2017-12-15")) 
+  filter(date(time) >= "2018-01-16") %>% 
+  mutate(time = get_time_m(time)) 
+#  filter((date(time) >= "2017-08-24") & (date(time) <= "2017-12-15")) 
   
 
 #bold_agg_session = aggregate(data=sp18_sessions, interval~user, FUN=as.character)
@@ -183,5 +183,17 @@ print_by_weeks =temp %>% filter((hour(start) >= 9) & (hour(end) < 18))  %>%
   tidyr::spread(if_printing, n) %>% 
   mutate(not_print = `FALSE`/(`FALSE` + `TRUE`)) %>% 
   mutate(print = `TRUE`/(`FALSE` + `TRUE`))
+```
+
+```{r}
+ggplot(print_by_dates) +
+  geom_line(aes(x=`date(start)`,y=print), colour="red") +
+  geom_line(aes(x=`date(start)`,y=1-print), colour="blue") +
+  ylim(0, 1)
+
+ggplot(print_by_weeks) +
+  geom_line(aes(x=`week(start)`+30,y=print), colour="red") +
+  geom_line(aes(x=`week(start)`+30,y=1-print), colour="blue") +
+  ylim(0, 1)
 ```
 
