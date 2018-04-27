@@ -3,8 +3,8 @@ title: 'OCF Lab Session Analysis Part 1: How Long Does It Take To Get a Computer
 author: "Shicheng Huang"
 date: "April 8, 2018"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
   word_document: default
 header-includes: \usepackage{amsmath}
 ---
@@ -194,19 +194,19 @@ summary_df = data.frame(rbind(
 grid.table(summary_df)
 ```
 
-Overall each quantile and mean is increased by about 15 seconds. This is significant because the wait time of a computer when the lab is full is often under 100 seconds. Unless we discard the inaccurate data, ####our model to predict wait time may suffer a high percent irreducible errors.####  
+Overall each quantile and mean is increased by about 15 seconds. This is significant because the wait time of a computer when the lab is full is often under 100 seconds. It is not good to later train a model with 27% of data that is around 15% inaccurate. 
 
 From the summary statistics, we can also see 50% of the sessions are under 6 minutes because many users leave the lab after printing documents. However, sometimes I have to wait for a non-printing user to get the corner computer, making me wonder if I can have a good guess when will that user leave given how long he/she has been there.
 
 
 # Basic Session Survival Analysis
 
-Below are the distributions of the session duration when a user has been on a computer for 0, 10, 15, and 20min respectively.  
+To find how **current session time**, how long a user has been on a computer, impacts the wait time, I first check how the current session time affects the *distribution* of the **remaining session duration**, how long a user will stay in addition to current session duration.      
+
+As a quick preview, I plot the distribution of session durations for the sessions longer than 0, 5, 10, 15 and 20 min. I choose to plot the distribution of total duration (current + remaining session duration) instead of remaining session duration, so the distributions don't clump up and become hard for you to distinguish among them.  
 
 # Expected Wait Time Given Current Session Duration
-
 ```{r different_duration_distributions}
-
 non_remaining = ggplot() +
   geom_line(aes(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 0], from=0)$x,
                 density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 0], from=0)$y,
@@ -235,13 +235,20 @@ non_remaining
 
 Notice nearly all distribution have a peak at the beginning. This means that at any given time, sessions have the highest probability (i.e pdf) of leaving within the first few minutes. However,  the distribution is getting flatter and flatter as current session time increases. In other words, we are less certain about when a user will leave as he stays in the lab longer.  
 
-Here are the steps I use to estimate the wait time of a computer.  
-1. Find how long the user has been using that computer, denote **current session time** X.  
-2. Select all the sessions with duration longer than X.  
-3. Find the 25%, 50% and 75% quantiles of those sessions.  
-3. Subtract the quantiles by X to get the quantiles of **remaining session time**.  
+To have a more comphrensive understanding of this heuristic, I want to see the the distributions for sessions long than 0, 1, 2,...75 min (75min is almost 96% quantile of all session durations).  
 
-Below are two graphs showing **current session time** X from 0 to 25 and 25 to 75 against **remaining session time**.  
+A plot with 75 distributions is very difficult to read. Therefore, instead of plotting all the distributions, I use **current session duration** as X variable, and use q1, q2 and q3 of the **remaining session duration** as Y variables. I also make two plots: one has X ranges from 0 to 25, the other plot has X ranges from 25 to 75.  
+
+```{r, eval=F}
+#Here are the steps I use to estimate the wait time of a computer.  
+#1. Find how long the user has been using that computer, denote **current session time** X.  
+#2. Select all the sessions with duration longer than X.  
+#3. Find the 25%, 50% and 75% quantiles of those sessions.  
+#3. Subtract the quantiles by X to get the quantiles of **remaining session time**.  
+#Additionally, I use one plot to show the first 25 distributions and the other th show the rest 50 distributions.  
+# Below are two graphs showing **current session time** X from 0 to 25 and 25 to 75 against **remaining session time**.  
+```
+
 
 ```{r eval=F}
 #I am going to use median as a metric instead of mean because of the following:  
@@ -269,6 +276,7 @@ colnames(temp_df) = c("t", "mean_wait", "median_wait", "q1", "q3", "count")
 #temp_df
 ```
 
+
 ```{r expected_wait_time_plot_declutter}
 sub25_sessions = ggplot(temp_df %>% 
          filter(t<=25)) + 
@@ -278,12 +286,7 @@ sub25_sessions = ggplot(temp_df %>%
   geom_text(aes(x=t[1], y=median_wait[1], label="q2"), hjust=1, colour="#0078ff") + 
   geom_text(aes(x=t[1], y=q1[1], label="q1"), hjust=1,colour="#00dfff") + 
   geom_text(aes(x=t[1], y=q3[1], label="q3"), hjust=1,colour="#000d6b") + 
-#  geom_hline(yintercept=(temp_df %>% filter(t<=25))$median_wait[1], 
-#         linetype="dotted", colour="#0078ff") +
-#  geom_hline(yintercept=(temp_df %>% filter(t<=25))$q1[1], linetype="dotted", colour="#00dfff") +
-#  geom_hline(yintercept=(temp_df %>% filter(t<=25))$q3[1], linetype="dotted", colour="#000d6b") +
   xlab("current session duration") + ylab("")
-#  ylab("remaining session duration")
 
 up25_session = ggplot(temp_df %>% 
          filter(t>25)) + 
@@ -304,7 +307,7 @@ grid.arrange(sub25_sessions, up25_session,
                                   gp=grid::gpar(fontsize=12,font=1)))
 ```
 
-As **current session time** increases, almost all quantiles increases. This increasing pattern slows down after 25 minutes or so (check the second graph). Also, there is a small dip in the first graph during the first few points, let's zoom in the first graph and take a closer look.  
+As **current session duration** increases, almost all quantiles increases. This increasing pattern slows down after 25 minutes or so (check the second graph). Also, there is a small dip in the first graph during the first few points, let's zoom in the first graph and see the part where X is smaller than 5.
 
 ```{r dip_on_wait_time_plot}
 mean_plot = ggplot(temp_df %>% head(4)) +
@@ -324,21 +327,24 @@ median_plot = ggplot(temp_df %>% head(5)) +
   geom_point(aes(x=t, y=q3), colour="#000d6b") +
   geom_text(aes(x=t, y=median_wait, label=round(median_wait,1)), 
             check_overlap = TRUE,
-            vjust = -1) + 
+            vjust = -1, hjust=-.3) + 
   geom_text(aes(x=t, y=q1, label=round(q1,1)), 
             check_overlap = TRUE,
-            vjust = -1) + 
+            vjust = -1, hjust=-.3) + 
   geom_text(aes(x=t, y=q3, label=round(q3,1)), 
             check_overlap = TRUE,
-            vjust = -1) + 
-  labs(title="Median Remaining Session Duration vs. Current Session Duration", x="current session duration", y="duration in minutes") +
+            vjust = -1, hjust=-.3) + 
+  geom_text(aes(x=t[1], y=median_wait[1], label="q2"), hjust=1.25, colour="#0078ff") + 
+  geom_text(aes(x=t[1], y=q1[1], label="q1"), hjust=1.25,colour="#00dfff") + 
+  geom_text(aes(x=t[1], y=q3[1], label="q3"), hjust=1.25,colour="#000d6b") + 
+  labs(title="Remaining Session Duration vs. Current Session Duration", x="current session duration", y="") +
   theme(legend.position="none", plot.title = element_text(hjust = 0.5)) + ylim(0, 21)
 
 #grid.arrange(mean_plot, median_plot)
 median_plot
 ```
 
-We can see the **remaining session time** is lowest at the 2 min mark for both the 25% and 50% quantile. Even for the 75% quantile, the lowest waiting time is when the session is at 1 min mark, instead of 0. Thus, the waiting time conditioned on **current session duration** first experiences a small decrease, then increases rapidly until the 25min mark, then increases slowly afterward. The overall lesson is, if somebody has been on a computer for a longer time, don't expect him or her to leave any time soon.    
+We can see the **remaining session time** is lowest at the 2 min mark for both the 25% and 50% quantile. Even for the 75% quantile, the lowest waiting time is when the session is at 1 min mark, instead of 0. Thus, the waiting time conditioned on **current session duration** first experiences a small decrease, then increases rapidly until the 25min mark, then increases slowly afterward. In summary, we should expect users to leave around 2 to 5mins; if somebody has been on a computer for a longer time, don't expect him or her to leave any time soon.  
 
 ```{r look_up_table, include=F}
 # lookup table i make
@@ -349,7 +355,7 @@ grid.table(lookup_table)
 
 ## Future Directions
 
-In part 1, we learn that a majority of the sessions are short. But the distribution of session duration is extremely right skewed with some unreasonable outlier. The maximum session length of our user this semester is 9+ hours! We also find that knowing how long a session has been (i.e the current session time) can help us infer how long the session will last from the current time (i.e remaining session time), but this heuristic's effectiveness will decrease after current session time exceeds 25 minutes or so.
+In part 1, we learn that a majority of the sessions are short. But the distribution of session duration is extremely right skewed with some unreasonable outlier. The longest session from our non-staff users this semester is 9+ hours! We also find that knowing how long a session has been (i.e the current session time) can help us infer how long the session will last additionally (i.e remaining session time). However, this heuristic's effectiveness will decrease after current session duration exceeds 25 minutes.  
 
 In the next part, I will examine additional variables such as **the computer used**. Students may favor computers closer to the printer; or students may avoid using double monitor computers from the misconception that those computers are for staff members only...
 
