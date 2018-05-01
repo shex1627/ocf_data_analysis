@@ -1,0 +1,255 @@
+---
+title: "OCF wait time trash space"
+output: html_notebook
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(echo = F, cache = T, warning = F, message = F)
+```
+
+```{r load_packages}
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+
+library(grid)
+library(gridExtra)
+```
+
+
+```{r loading_data}
+sessions <- read.csv("~/remote/ocf_boc/data/session_duration_public.csv", stringsAsFactors=FALSE, na.strings = "NULL")
+staff_sessions <- read.csv("~/remote/ocf_boc/data/staff_session_duration_public.csv", stringsAsFactors=FALSE,na.strings = "NULL")
+```
+
+```{r cleaning}
+sessions = sessions %>% 
+  filter(complete.cases(sessions)) %>%
+  filter(duration > 0) %>%
+  filter(host != "blizzard.ocf.berkeley.edu") %>%
+  filter(host != "eruption.ocf.berkeley.edu") %>%
+  mutate(duration = time_length(interval(start = start, end = end), unit="minute"))
+
+staff_sessions = staff_sessions %>% 
+  filter(complete.cases(staff_sessions)) %>%
+  mutate(duration = time_length(interval(start = start, end = end), unit="minute"))
+
+public_sessions = sessions %>% anti_join(staff_sessions, by="id")
+```
+
+```{r argument_session_data}
+sp18 = public_sessions %>% filter(date(start) >= "2018-01-16") %>% arrange(desc(end))
+sp18_weekdays = sp18 %>% filter(!(weekdays(date(start)) %in% c("Sunday", "Saturday")))
+sp18_staff = staff_sessions %>% filter(date(start) >= '2018-01-16')
+wait_times = as.numeric(difftime(sp18$end[1:(length(sp18$end)-1)], sp18$end[2:length(sp18$end)])) 
+sp18_wait = sp18 %>% 
+  mutate(wait_time = c(0, as.numeric(difftime(sp18$end[1:(length(sp18$end)-1)], sp18$end[2:length(sp18$end)])))) %>%
+  mutate(weekday = weekdays(date(start))) %>%
+  mutate(hour = hour(end))
+```
+
+
+```{r include=F}
+ggplot() +
+  geom_bar(aes(x=second(sp18$end))) +
+  geom_hline(yintercept =  1/60 * length(second(sp18$start)), color="red") + 
+  xlab("session end second")
+
+#The session end seconds also have a peak on 0 and 1, I suspect this is due to a desktop logs out abnormally (from a computer freeze) and some other reasons. But I don't think the small peak of session end seconds would affect the analysis as much since not many sessions are affected.  
+```
+
+
+
+```{r include=F}
+ggplot() +
+  geom_bar(aes(x=second(sp18_weekdays$start[date(sp18_weekdays$start) <= "2018-02-05"]), 
+               group=date(sp18_weekdays$start[date(sp18_weekdays$start) <= "2018-02-05"]),
+               fill=factor(date(sp18_weekdays$start[date(sp18_weekdays$start) <= "2018-02-05"]))), colour="black")
+```
+
+```{r }
+ggplot() +
+  geom_bar(aes(x=second(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]), 
+               group=date(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]),
+               fill=factor(date(sp18_weekdays$start[date(sp18_weekdays$start) > "2018-02-05"]))), colour="black") +
+  xlab("start second")
+# +
+#  theme(legend.position="none")
+# for some reason 3 is abnormally high, and 0, 1, 2 are low
+```
+
+```{r }
+post05 = sp18_weekdays %>% filter(date(start) > "2018-02-05") 
+# starting second 3 has highest count
+ggplot(post05 %>% count(hour=hour(start),second=second(start)) %>% filter((hour < 19) & (hour > 8))) +
+  geom_line(aes(x=hour, y=n, color=factor(second), group=second)) +
+  scale_x_continuous(breaks=0:24,label=0:24)+
+  theme(legend.position="none")
+# starting second 3 is always the highest
+
+#View(post05 %>% count(hour=hour(start),second=second(start)) %>% tidyr::spread(second, n))
+```
+
+```{r corrupted_sessions_host, include=F}
+#corrupted_sessions = data.frame(sp18_weekdays %>% 
+#                    filter(date(start) > "2018-02-05") %>% 
+#                    mutate(if_corrupted = second(start) == 3 ) %>% 
+#                    group_by(date=date(start), host) %>% 
+#                    summarise(num_corrupted=sum(if_corrupted),
+#                             num_session=n()) %>%
+#                    mutate(percent_corrupted=num_corrupted/num_session))
+#ggplot(corrupted_sessions) +
+#  geom_point(aes(x=date,y=percent_corrupted, group=host, color=host, size=num_session))+ scale_x_date(date_minor_breaks = "1 day") +
+#  geom_line(aes(x=date,y=percent_corrupted, group=host, color=host))+ scale_x_date(date_minor_breaks = "1 day")
+
+#, size=num_session
+```
+
+```{r corrupted_session_plot}
+corrupted_session_plot = ggplot(corrupted_sessions) +
+  geom_point(aes(x=date,y=percent_corrupted,size=num_session), alpha=0.5) +
+  scale_x_date(date_minor_breaks = "1 day") +
+  ylim(0, 1.05) +
+  theme(legend.position = "none")
+
+c_session_plot_small = ggplot(corrupted_sessions %>% filter(month(date) == 2) %>% head(10)) +
+  #geom_point(aes(x=date,y=percent_corrupted), alpha=0.5)+ 
+  geom_line(aes(x=date,y=percent_corrupted)) + 
+  geom_line(aes(x=date,y=percent_corrupted)) +
+  scale_x_date(date_minor_breaks = "1 day") + 
+  theme(legend.position = "top")+
+  ylim(0, 1.05) 
+
+grid.arrange(corrupted_session_plot, c_session_plot_small)
+```
+
+```{r}
+#View(sp18_weekdays %>% mutate(start_second = second(start)) %>% count(date=date(start), start_second) %>%
+#       tidyr::spread(start_second, n))
+
+
+#View(data.frame(sp18_weekdays %>% 
+#                    mutate(if_corrupted = second(start) < 10) %>% 
+#                    group_by(date=date(start)) %>% 
+#                    summarise(num_corrupted=sum(if_corrupted),
+#                              num_session=n()) %>%
+#                    mutate(percent_corrupted=num_corrupted/num_session)))
+```
+
+```{r weekdays}
+# enough evidence to separate between 
+sp18_weekdays %>% group_by(weekday=weekdays(date(start))) %>% summarise(mean=mean(adjusted_duration),
+                                                       median=median(adjusted_duration),
+                                                       below5=mean(adjusted_duration<5)
+                                                       ) %>% arrange(mean)
+```
+
+```{r session_histogram}
+duration_hist = ggplot()+
+  geom_histogram(aes(sp18_weekdays$adjusted_duration), bins = 500) +
+  xlim(0, 200) +
+  xlab("duration in minutes")+
+  geom_vline(xintercept=quantile(sp18_weekdays$adjusted_duration,c(0.8, 0.9,0.99)), col="red")+
+  geom_text(aes(x=quantile(sp18_weekdays$adjusted_duration,c(0.8, 0.9,0.99))+5,
+                y=c(1250, 1250, 1250), 
+                label=c("80%","90%","99%")),color="blue")
+
+duration_hist_short = ggplot()+
+  geom_histogram(aes(sp18_weekdays$adjusted_duration), bins = 30, color="gray") +
+  xlim(0, 30)+
+  xlab("duration in minutes") +
+  geom_vline(xintercept=quantile(sp18_weekdays$adjusted_duration,seq(0.25, 0.75,0.25)), col="red") +
+  geom_text(aes(x=quantile(sp18_weekdays$adjusted_duration,seq(0.25, 0.75,0.25))+2,
+                y=c(3999, 3500, 3000), 
+                label=c("25%","50%","75%")),color="blue")
+
+grid.arrange(duration_hist_short, duration_hist, ncol=2)
+```
+
+```{r quantile_graph}
+percentiles = seq(0.05, 1, 0.05)
+quantiles = round(quantile(sp18_weekdays$adjusted_duration, percentiles), 1)
+
+ggplot() +
+  geom_line(aes(x=percentiles, y=quantiles)) +
+  geom_point(aes(x=percentiles, y=quantiles)) +
+  geom_text(aes(x=percentiles[c(5, 10, 15)], y=quantiles[c(5, 10, 15)], label=quantiles[c(5, 10, 15)]), 
+            check_overlap = TRUE,
+            vjust = -1) +
+  ylim(-5, 75)
+```
+
+```{r expected_wait_time}
+# showing the mean and median wait time conditioned on  the current session time
+temp_df_melted = temp_df %>% 
+  select(t, median_wait, mean_wait) %>% 
+  reshape::melt(id=c("t")) %>% rename(metric=variable, wait_time=value)
+wait_time_plot = ggplot(temp_df_melted) + 
+  geom_point(aes(x=t, y=wait_time, group=metric, color=metric)) +
+  geom_line(aes(x=t, y=wait_time, group=metric, color=metric)) + 
+  ylab("remaining session duration in minutes") 
+  
+#wait_time_plot
+```
+
+```{r expected_wait_time_plot, include=F}
+sub25_sessions = ggplot(temp_df %>% 
+         filter(t<=25), aes(x=t, y=median_wait)) + 
+#  geom_point(colour="blue") +
+  geom_line(colour="blue") +
+#  geom_line(aes(x=t, y=mean_wait), colour="red") + 
+  geom_errorbar(aes(ymin=q1, ymax=q3)) +
+  xlab("current session duration")
+
+up25_session = ggplot(temp_df %>% 
+         filter(t>25), aes(x=t, y=median_wait)) + 
+#  geom_point(colour="blue") +
+  geom_line(colour="blue") +
+#  geom_line(aes(x=t, y=mean_wait), colour="red") + 
+  geom_errorbar(aes(ymin=q1, ymax=q3))+
+  xlab("current session duration")
+
+grid.arrange(sub25_sessions, up25_session, 
+             top = grid::textGrob("Remaining Session Duration vs Current Session Duration",
+                                  gp=grid::gpar(fontsize=12,font=1)))
+```
+
+```{r entropy}
+entropy::entropy(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 0], from=0)$y, unit = "log2")
+entropy::entropy(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 5], from=5)$y, unit = "log2")
+entropy::entropy(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 10], from=10)$y, unit = "log2")
+entropy::entropy(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 15], from=15)$y, unit = "log2")
+entropy::entropy(density(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 20], from=20)$y, unit = "log2")
+```
+
+```{r}
+non_remaining = ggplot() +
+  geom_boxplot(aes(x=0, y=sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 0])) +
+  geom_boxplot(aes(x=5, y=sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 5]-5)) + 
+  geom_boxplot(aes(x=10, y=sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 10]-10)) +
+  geom_boxplot(aes(x=15, y=sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 15]-15)) + 
+  geom_boxplot(aes(x=20, y=sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 20]-20)) +
+  geom_boxplot(aes(x=25, y=sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 25]-25)) +
+  geom_boxplot(aes(x=30, y=sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 30]-30)) +
+  geom_boxplot(aes(x=35, y=sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 35]-35)) +
+  geom_boxplot(aes(x=40, y=sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 40]-40)) +
+  geom_boxplot(aes(x=45, y=sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 45]-45)) +
+  ylim(0, 100)
+non_remaining
+```
+
+```{r eval=F}
+non_remaining = ggplot() +
+  geom_histogram(aes(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 0], 
+                     fill=I("#009ee3"), alpha=1)) +
+  geom_histogram(aes(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 5], 
+                     fill=I("#00a3c9"), alpha=0.7)) +
+  geom_histogram(aes(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 10],
+                     fill=I("#00a6aa"), alpha=0.5)) +
+  geom_histogram(aes(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 15],
+                     fill=I("#00a989"), alpha=0.5)) +
+  geom_histogram(aes(sp18_weekdays$adjusted_duration[sp18_weekdays$adjusted_duration > 20],
+                     fill=I("#2eac66"), alpha=0.2)) +
+  xlim(0, 100)
+non_remaining
+```

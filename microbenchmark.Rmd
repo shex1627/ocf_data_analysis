@@ -1,0 +1,198 @@
+---
+title: "Introduction to Microbenchmark"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=F}
+knitr::opts_chunk$set(cache=T)
+knitr::opts_chunk$set(message = F)
+knitr::opts_chunk$set(warning = F)
+```
+
+
+```{r, include=F}
+library(microbenchmark)
+library(dplyr)
+require(ggplot2)
+```
+
+## Why `microbenchmark`  
+`Microbenchmark` is an R package that allows you to measure the run time of a small block of code (mostly a function run). The most important use of this package is to compare the run time of different functions/algorithms that do
+the same or similar things.  
+
+Here are three common use cases that I find:  
+
+1. To find the fastest implementation of a function. R is not fantastic in speed so it is important to keep your algorithms optimized.  
+2. To find the function that scales better with data or input size.   
+3. To understand a function's run time performance with different parameters. For instance, using the time series modeling function `arima` with an additional seasonal, autoregressive parameter can increase run time by a factor of 5 to 10 but not much prediction performance increase (see more details from my project report on [github](https://github.com/shex1627/google_trend/blob/master/reports/report_notebook.pdf)).
+
+
+## Function `microbenchmark` Parameters
+Here is the skeleton code of a `microbenchmark` function call.  
+```{r eval=F}
+microbenchmark(
+  expression_1 or function_call_1, # e.g print("hello world")
+  expression_2 or function_call_2, # e.g print("hello rstat") 
+  expression_3 or function_call_3, # e.g print("hello tidyverse")
+  times = 100,
+  unit = "ms"
+)
+```
+
+First `microbenchmark` takes as many expressions as you want to speed tests on , then you specify the configurations
+of the speed tests via the following two parameters (some complicated parameters are omitted in this article) :  
+
+1. **times**: Number of times to evaluate the expression. By default `microbenchmark` runs each expressions **100 times.** If you expect your expressions will take about 5 seconds to run a single time, you should change this parameter accordingly so you don't have to wait too long.  
+
+2. **unit**: Specify the units of time used. You can also change the `unit` to "s" (second),  "ms" ($10^{-3}$ second), "us" ($10^{-6}$ second) and "ns" ($10^{-9}$ second).
+
+## Microbenchmark in Action
+
+### substr vs substring
+Assuming you are trying to extract the prefix of a string (e.g taking date from a timestamp).  
+From [stack overflow](https://stackoverflow.com/questions/tagged/r) you find that you can use either `substr` or `substring`. If you are too lazy to read the documentation and find the exact difference, you can try to use microbenchmark to compare their speed before making your choice.  
+
+First, we can see both `substr` and `substring` can take the first 3 characters from a string.   
+```{r substr_and_substring}
+substr("hello", 1, 3)
+substring("hello", 1, 3)
+```
+
+Then, we can use microbenchmark to see who is faster.  
+```{r runing_microbenchmark}
+str_vs_string = microbenchmark(
+  substr("hello", 1, 3), #expression 1
+  substring("hello", 1, 3), #expression 2
+  times=1000 #run some more times since a single function call is fast.
+)
+```
+
+For a quick comparison of performances, you can use `print`, which shows the basic summary statistics (min/max/mean/median) of each expression. Function `summary` outputs the same information without showing the unit used. So you wouldn't want to use `summary`.
+
+```{r benchmark_print}
+print(str_vs_string)
+```
+
+```{r benchmark_summary}
+summary(str_vs_string)
+```
+
+For more details of the distribution of the run times/speed, you can use `autoplot`. By default, `autoplot` is in log10 scale, to see the original scale, you have to set parameter `log` to `FALSE`. It is better to see the plot in log scale because the distribution is usually heavily right skewed, log10 scale gives you a better visual of the run time distribution. 
+
+```{r autoplot}
+str_log_plot = autoplot(str_vs_string)
+str_nolog_plot = autoplot(str_vs_string, log=F)
+gridExtra::grid.arrange(str_log_plot, str_nolog_plot)
+```
+
+```{r include=F, eval=F}
+hello_vec_short = sample(rep(as.character(iris$Species), 1))
+vec_ben_short = microbenchmark(
+  substr(hello_vec_short, 1, 3), #expression 1
+  substring(hello_vec_short, 1, 3), #expression 2
+  times=100
+)
+
+print(vec_ben_short)
+```
+
+```{r include=F, eval=F}
+hello_vec = sample(rep(as.character(iris$Species), 1000))
+vec_ben = microbenchmark(
+  substr(hello_vec, 1, 3), #expression 1
+  substring(hello_vec, 1, 3), #expression 2
+  times=100
+)
+
+print(vec_ben)
+```
+
+From the plot and summaries, we can see `substr` and `substring` are both extremely fast, only taking nanoseconds to compute. However, `substr` is about 40% faster than `substring`. What about benchmarking them with a large vector, will this relative difference persist?  
+
+```{r string_vec, fig.width=9, fig.height=2}
+large_str_vec = sample(rep(as.character(iris$Species), 1000)) # a vector with length 150 * 1000 elements
+
+large_str_compare = microbenchmark(
+  substr(large_str_vec, 1, 3), #expression 1
+  substring(large_str_vec, 1, 3), #expression 2
+  times=100
+)
+
+gridExtra::grid.table(summary(large_str_compare))
+```
+
+We can see when applied to a vector of large strings, `substr` and `substring` have very little difference, in contrast to the 40% difference when applied to a single string. Additionally, both functions doesn't scale linearly when switching from **a single string** to **a string vector** (different input types). The average run time of `substr` on 1 string is about 10^3 nanoseconds, while that on a 150\*1000-vector is 8 milliseconds (i.e 8 * 10^6). So the run time of `substr` increases by 8\*10^3 while the input size increases by 150\*1000. In short, it seems like functions in R scales differently when applied to a single element and when applied to a vector.  
+
+Next I will show you two functions can scale differently with input vectors at different sizes.  
+
+### Sapply vs Mutate
+`sapply` and `mutate` can both apply a function to a vector. Lets compare their performances when applied to a small vector with 150 elements and a big vector with about 150*1000 elements.
+```{r data_prep}
+# extending the iris data set
+iris_extended = iris
+for (i in 1:10) {
+  iris_extended = rbind(iris_extended, iris_extended)
+}
+```
+
+```{r show_vec_size}
+nrow(iris)
+nrow(iris_extended)
+```
+
+```{r lambda_function}
+# wrapper function of three_char so it can be used as a parameter
+three_char = function(string) {
+  substr(string, 1, 3)
+}
+```
+
+**When you benchmarking your functions with a large input, make sure you adjust the `times` parameter. Otherwise you may have to wait a long time for 100 evaluations to complete.**
+
+```{r function_call_wrapper}
+# Use wrappers for function calls so the expression doesn't clot up the autoplot
+mutate_small_data = function() {iris %>% mutate(result = three_char(Species))}
+sapply_small_data = function() {sapply(iris[,5], FUN = three_char)}
+
+mutate_large_data = function() {iris_extended %>% mutate(result = three_char(Species))}
+sapply_large_data = function() {iris_extended$result <- sapply(iris_extended[,5], FUN = three_char)} 
+```
+
+```{r comparison}
+# Microbenchmarking
+applys_compare_short = microbenchmark(
+  sapply_small_data(),
+  mutate_small_data(),
+  times = 100,
+  unit="ms") 
+
+applys_compare_long = microbenchmark(
+  sapply_large_data(), 
+  mutate_large_data(),
+  times = 20, # reduce the times run because I expect the expressions take some time to run
+  unit="s") 
+```
+
+```{r performance_compare_plots}
+plot_short = autoplot(applys_compare_short)
+plot_large = autoplot(applys_compare_long) 
+gridExtra::grid.arrange(plot_short, plot_large)
+```
+
+From the graph we can see, `mutate` is slightly better than `sapply` in small datasets. When the length of the vector increase by a factor of 1000 (from 150 elements to 150k elements), `mutate`'s run time only increased by around a factor of 10, while `sapply`'s run time increases by about factor of 1000. Below are table are the exact run times in microseconds.  
+
+```{r performance_compare_exact_numbers, echo=F, fig.width=7, fig.height=2}
+compare_table = rbind(data.frame(summary(applys_compare_short)), data.frame(summary(applys_compare_long, unit="ms")))
+compare_table2 = cbind(expression=compare_table[,1], round(compare_table[,c(2,3,5,6,7)], 3))
+
+t1 <- gridExtra::ttheme_default(core=list(
+        bg_params = list(fill=c("gray95", "gray90", "#ff3232", "gray95"))
+        ))
+gridExtra::grid.table(compare_table2, theme=t1)
+```
+
+## Conclusion
+R functions that do the same thing can have different run times and different scaling behaviors. Sometimes the difference is small while sometimes the difference is too big to ignore. Therefore you may want to quantify the exact different using microbenchmark. 
